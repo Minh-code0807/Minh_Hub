@@ -115,56 +115,77 @@ local function createButton(name, callback)
 	btn.MouseButton1Click:Connect(callback)
 end
 
--- 1. Tp end (dịch chuyển có khoá + nhấn space để huỷ)
+-- 1. Tp end (dịch chuyển và ngồi pháo)
 createButton("Tp end", function()
-	local targetCFrame = CFrame.new(-428.75, 23, -49040.91)
-	local char = player.Character or player.CharacterAdded:Wait()
-	local hrp = char:WaitForChild("HumanoidRootPart")
-	local humanoid = char:FindFirstChildOfClass("Humanoid")
+    local player = game.Players.LocalPlayer
+    local char = player.Character or player.CharacterAdded:Wait()
+    local hrp = char:WaitForChild("HumanoidRootPart")
 
-	if not hrp or not humanoid then return end
+    if not hrp then return end
 
-	local locked, success = true, false
+    -- Bắt đầu hành động
+    hrp.Anchored = true -- Đóng băng người chơi
+    wait(0.5)
 
-	humanoid.WalkSpeed = 0
-	humanoid.JumpPower = 0
-	humanoid.AutoRotate = false
+    -- Dịch chuyển đến vị trí đích
+    hrp.CFrame = CFrame.new(-424, 30, -49041)
 
-	local userInput = game:GetService("UserInputService")
-	local conn
+    -- Chờ FinalBasePlate
+    repeat task.wait() until workspace.Baseplates:FindFirstChild("FinalBasePlate")
 
-	conn = userInput.InputBegan:Connect(function(input, gpe)
-		if not gpe and input.KeyCode == Enum.KeyCode.Space then
-			locked = false
-			game.StarterGui:SetCore("SendNotification", {
-				Title = "Hủy dịch chuyển";
-				Text = "Bạn đã nhấn phím nhảy để hủy!";
-				Duration = 2;
-			})
-		end
-	end)
+    local BasePart = workspace.Baseplates:FindFirstChild("FinalBasePlate")
+    local OurLaw = BasePart:FindFirstChild("OutlawBase")
+    local Sen = OurLaw:FindFirstChild("Sentries")
 
-	spawn(function()
-		while locked and not success do
-			if (hrp.Position - targetCFrame.Position).Magnitude > 3 then
-				hrp.CFrame = targetCFrame
-			else
-				success = true
-			end
-			wait(0.2)
-		end
+    -- Kiểm tra và xử lý ghế pháo
+    if Sen:FindFirstChild("TurretSpot") and Sen.TurretSpot:FindFirstChild("MaximGun") and Sen.TurretSpot.MaximGun:FindFirstChild("VehicleSeat") then
+        wait(1.5)
+        for i, v in pairs(Sen:FindFirstChild("TurretSpot"):GetChildren()) do
+            if v.Name == "MaximGun" and v:FindFirstChild("VehicleSeat") then
+                v.VehicleSeat.Disabled = false -- Bật ghế pháo
+            end
+        end
+        wait(0.5)
 
-		humanoid.WalkSpeed = 16
-		humanoid.JumpPower = 50
-		humanoid.AutoRotate = true
-		if conn then conn:Disconnect() end
+        hrp.Anchored = false -- Bỏ đóng băng người chơi
 
-		game.StarterGui:SetCore("SendNotification", {
-			Title = "Tp end";
-			Text = success and "Dịch chuyển thành công!" or "Bị huỷ bởi người dùng!";
-			Duration = 2;
-		})
-	end)
+        -- Liên tục dịch chuyển để buộc người chơi ngồi vào ghế
+        local maxAttempts = 30 -- Giới hạn số lần thử để tránh lặp vô hạn
+        local attempts = 0
+        repeat task.wait()
+            for i, v in pairs(Sen:FindFirstChild("TurretSpot"):GetChildren()) do
+                if v.Name == "MaximGun" and v:FindFirstChild("VehicleSeat") then
+                    hrp.CFrame = v:FindFirstChild("VehicleSeat").CFrame
+                end
+            end
+            attempts = attempts + 1
+        until player.Character.Humanoid.Sit == true or attempts >= maxAttempts
+
+        if player.Character.Humanoid.Sit == true then
+            wait(0.5)
+            player.Character.Humanoid.Sit = false -- Buộc người chơi đứng dậy
+
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "Tp end & ngồi pháo";
+                Text = "Dịch chuyển thành công và hoàn tất hành động với pháo!";
+                Duration = 3;
+            })
+        else
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "Lỗi Tp end";
+                Text = "Không thể ngồi vào ghế pháo MaximGun.";
+                Duration = 3;
+            })
+            hrp.Anchored = false -- Đảm bảo người chơi không bị đóng băng nếu không ngồi được
+        end
+    else
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "Lỗi Tp end";
+            Text = "Không tìm thấy khẩu pháo MaximGun hoặc ghế ngồi tại vị trí.";
+            Duration = 3;
+        })
+        hrp.Anchored = false -- Đảm bảo người chơi không bị đóng băng nếu không tìm thấy pháo
+    end
 end)
 
 -- 2. NPC Lock
