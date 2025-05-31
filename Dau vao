@@ -52,14 +52,14 @@ timerLabel.Parent = frame
 
 local seconds = 10 * 60
 spawn(function()
-	while seconds >= 0 do
-		local mins = math.floor(seconds / 60)
-		local secs = seconds % 60
-		timerLabel.Text = string.format("%02d:%02d", mins, secs)
-		wait(1)
-		seconds = seconds - 1
-	end
-	timerLabel.Text = "00:00"
+    while seconds >= 0 do
+        local mins = math.floor(seconds / 60)
+        local secs = seconds % 60
+        timerLabel.Text = string.format("%02d:%02d", mins, secs)
+        wait(1)
+        seconds = seconds - 1
+    end
+    timerLabel.Text = "00:00"
 end)
 
 -- Thu nhỏ / phóng to
@@ -91,100 +91,151 @@ smallBtn.Draggable = true
 smallBtn.Parent = gui
 
 minimizeBtn.MouseButton1Click:Connect(function()
-	frame.Visible = false
-	smallBtn.Visible = true
+    frame.Visible = false
+    smallBtn.Visible = true
 end)
 
 smallBtn.MouseButton1Click:Connect(function()
-	frame.Visible = true
-	smallBtn.Visible = false
+    frame.Visible = true
+    smallBtn.Visible = false
 end)
 
 -- Button creation helper
 local function createButton(name, callback)
-	local btn = Instance.new("TextButton")
-	btn.Size = UDim2.new(0, 96, 0, 50)
-	btn.BackgroundColor3 = Color3.fromRGB(114, 137, 218)
-	btn.Text = name
-	btn.TextColor3 = Color3.fromRGB(255,255,255)
-	btn.Font = Enum.Font.GothamBold
-	btn.TextSize = 24
-	btn.BorderSizePixel = 0
-	btn.AutoButtonColor = true
-	btn.Parent = buttonTable
-	btn.MouseButton1Click:Connect(callback)
+    local btn = Instance.new("TextButton")
+    btn.Size = UDim2.new(0, 96, 0, 50)
+    btn.BackgroundColor3 = Color3.fromRGB(114, 137, 218)
+    btn.Text = name
+    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.Font = Enum.Font.GothamBold
+    btn.TextSize = 24
+    btn.BorderSizePixel = 0
+    btn.AutoButtonColor = true
+    btn.Parent = buttonTable
+    btn.MouseButton1Click:Connect(callback)
 end
 
--- 1. Tp end (dịch chuyển và ngồi pháo)
+-- 1. Tp end (dịch chuyển và ngồi pháo) - ĐÃ ĐƯỢC CẢI TIẾN
 createButton("Tp end", function()
     local player = game.Players.LocalPlayer
     local char = player.Character or player.CharacterAdded:Wait()
+    local humanoid = char:WaitForChild("Humanoid")
     local hrp = char:WaitForChild("HumanoidRootPart")
 
-    if not hrp then return end
+    -- Kiểm tra nếu không tìm thấy HumanoidRootPart
+    if not hrp then 
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "Lỗi",
+            Text = "Không tìm thấy HumanoidRootPart",
+            Duration = 3
+        })
+        return 
+    end
 
-    -- Bắt đầu hành động
-    hrp.Anchored = true -- Đóng băng người chơi
-    wait(0.5)
-
+    -- Bắt đầu quá trình
+    hrp.Anchored = true
+    task.wait(0.5)
+    
     -- Dịch chuyển đến vị trí đích
     hrp.CFrame = CFrame.new(-424, 30, -49041)
-
-    -- Chờ FinalBasePlate
-    repeat task.wait() until workspace.Baseplates:FindFirstChild("FinalBasePlate")
+    
+    -- Chờ FinalBasePlate xuất hiện với timeout
+    local timeout = 30
+    local startTime = os.time()
+    
+    repeat
+        task.wait()
+        if os.time() - startTime > timeout then
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "Timeout",
+                Text = "Không tìm thấy FinalBasePlate",
+                Duration = 3
+            })
+            hrp.Anchored = false
+            return
+        end
+    until workspace.Baseplates:FindFirstChild("FinalBasePlate")
 
     local BasePart = workspace.Baseplates:FindFirstChild("FinalBasePlate")
-    local OurLaw = BasePart:FindFirstChild("OutlawBase")
-    local Sen = OurLaw:FindFirstChild("Sentries")
+    local OurLaw = BasePart:FindFirstChild("OutlawBase") or BasePart:WaitForChild("OutlawBase", 5)
+    local Sen = OurLaw:FindFirstChild("Sentries") or OurLaw:WaitForChild("Sentries", 5)
 
-    -- Kiểm tra và xử lý ghế pháo
-    if Sen:FindFirstChild("TurretSpot") and Sen.TurretSpot:FindFirstChild("MaximGun") and Sen.TurretSpot.MaximGun:FindFirstChild("VehicleSeat") then
-        wait(1.5)
-        for i, v in pairs(Sen:FindFirstChild("TurretSpot"):GetChildren()) do
+    if not Sen then
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "Lỗi",
+            Text = "Không tìm thấy Sentries",
+            Duration = 3
+        })
+        hrp.Anchored = false
+        return
+    end
+
+    -- Kiểm tra và kích hoạt ghế pháo
+    local turretSpot = Sen:FindFirstChild("TurretSpot") or Sen:WaitForChild("TurretSpot", 5)
+    if turretSpot and turretSpot:FindFirstChild("MaximGun") and turretSpot.MaximGun:FindFirstChild("VehicleSeat") then
+        task.wait(1.5)
+        
+        -- Kích hoạt tất cả ghế pháo
+        for _, v in pairs(turretSpot:GetChildren()) do
             if v.Name == "MaximGun" and v:FindFirstChild("VehicleSeat") then
-                v.VehicleSeat.Disabled = false -- Bật ghế pháo
+                v.VehicleSeat.Disabled = false
             end
         end
-        wait(0.5)
 
-        hrp.Anchored = false -- Bỏ đóng băng người chơi
+        task.wait(0.5)
+        hrp.Anchored = false
 
-        -- Liên tục dịch chuyển để buộc người chơi ngồi vào ghế
-        local maxAttempts = 30 -- Giới hạn số lần thử để tránh lặp vô hạn
+        -- Vòng lặp kiểm tra và thực hiện ngồi liên tục
+        local maximGun = turretSpot.MaximGun
+        local seat = maximGun.VehicleSeat
+        local success = false
         local attempts = 0
-        repeat task.wait()
-            for i, v in pairs(Sen:FindFirstChild("TurretSpot"):GetChildren()) do
-                if v.Name == "MaximGun" and v:FindFirstChild("VehicleSeat") then
-                    hrp.CFrame = v:FindFirstChild("VehicleSeat").CFrame
+        local maxAttempts = 50
+        
+        while not success and attempts < maxAttempts do
+            attempts = attempts + 1
+            
+            -- Định vị nhân vật gần ghế
+            hrp.CFrame = seat.CFrame * CFrame.new(0, 1.5, 0)
+            task.wait(0.1)
+            
+            -- Kiểm tra khoảng cách và thử ngồi
+            if (hrp.Position - seat.Position).Magnitude < 5 then
+                humanoid.Sit = true
+                task.wait(0.2)
+                
+                -- Xác nhận đã ngồi
+                if humanoid.Sit then
+                    success = true
+                    game.StarterGui:SetCore("SendNotification", {
+                        Title = "Thành công",
+                        Text = "Đã ngồi vào pháo thành công!",
+                        Duration = 3
+                    })
+                    
+                    -- Tự động đứng dậy sau khi ngồi
+                    task.wait(0.5)
+                    humanoid.Sit = false
                 end
             end
-            attempts = attempts + 1
-        until player.Character.Humanoid.Sit == true or attempts >= maxAttempts
+            
+            task.wait(0.3)
+        end
 
-        if player.Character.Humanoid.Sit == true then
-            wait(0.5)
-            player.Character.Humanoid.Sit = false -- Buộc người chơi đứng dậy
-
+        if not success then
             game.StarterGui:SetCore("SendNotification", {
-                Title = "Tp end & ngồi pháo";
-                Text = "Dịch chuyển thành công và hoàn tất hành động với pháo!";
-                Duration = 3;
+                Title = "Cảnh báo",
+                Text = "Không thể ngồi vào pháo sau "..maxAttempts.." lần thử",
+                Duration = 3
             })
-        else
-            game.StarterGui:SetCore("SendNotification", {
-                Title = "Lỗi Tp end";
-                Text = "Không thể ngồi vào ghế pháo MaximGun.";
-                Duration = 3;
-            })
-            hrp.Anchored = false -- Đảm bảo người chơi không bị đóng băng nếu không ngồi được
         end
     else
         game.StarterGui:SetCore("SendNotification", {
-            Title = "Lỗi Tp end";
-            Text = "Không tìm thấy khẩu pháo MaximGun hoặc ghế ngồi tại vị trí.";
-            Duration = 3;
+            Title = "Lỗi",
+            Text = "Không tìm thấy MaximGun hoặc VehicleSeat",
+            Duration = 3
         })
-        hrp.Anchored = false -- Đảm bảo người chơi không bị đóng băng nếu không tìm thấy pháo
+        hrp.Anchored = false
     end
 end)
 
@@ -193,27 +244,27 @@ local oldMinZoom, oldMaxZoom = nil, nil
 local npcLockEnabled = false
 
 createButton("NPC Lock", function()
-	npcLockEnabled = not npcLockEnabled
-	if npcLockEnabled then
-		oldMinZoom = player.CameraMinZoomDistance
-		oldMaxZoom = player.CameraMaxZoomDistance
-		player.CameraMinZoomDistance = 0.5
-		player.CameraMaxZoomDistance = 50
-		loadstring(game:HttpGet("https://raw.githubusercontent.com/huybuda1/Anh-Con-PHD-Troll/refs/heads/main/AnhCon_TheNao_LaiManh.lua"))()
-		game.StarterGui:SetCore("SendNotification", {
-			Title = "NPC Lock";
-			Text = "Đã bật NPC Lock!";
-			Duration = 2;
-		})
-	else
-		player.CameraMinZoomDistance = oldMinZoom
-		player.CameraMaxZoomDistance = oldMaxZoom
-		game.StarterGui:SetCore("SendNotification", {
-			Title = "NPC Lock";
-			Text = "Đã tắt NPC Lock!";
-			Duration = 2;
-		})
-	end
+    npcLockEnabled = not npcLockEnabled
+    if npcLockEnabled then
+        oldMinZoom = player.CameraMinZoomDistance
+        oldMaxZoom = player.CameraMaxZoomDistance
+        player.CameraMinZoomDistance = 0.5
+        player.CameraMaxZoomDistance = 50
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/huybuda1/Anh-Con-PHD-Troll/refs/heads/main/AnhCon_TheNao_LaiManh.lua"))()
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "NPC Lock",
+            Text = "Đã bật NPC Lock!",
+            Duration = 2;
+        })
+    else
+        player.CameraMinZoomDistance = oldMinZoom
+        player.CameraMaxZoomDistance = oldMaxZoom
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "NPC Lock",
+            Text = "Đã tắt NPC Lock!",
+            Duration = 2;
+        })
+    end
 end)
 
 -- 3. noclip
@@ -221,57 +272,57 @@ local noclipEnabled = false
 local noclipConnection = nil
 
 createButton("noclip", function()
-	noclipEnabled = not noclipEnabled
+    noclipEnabled = not noclipEnabled
 
-	local function Noclip()
-		local char = player.Character
-		if char then
-			for _, part in pairs(char:GetDescendants()) do
-				if part:IsA("BasePart") then
-					part.CanCollide = false
-				end
-			end
-		end
-	end
+    local function Noclip()
+        local char = player.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end
 
-	if noclipEnabled then
-		noclipConnection = game:GetService("RunService").Stepped:Connect(Noclip)
-		game.StarterGui:SetCore("SendNotification", {
-			Title = "noclip";
-			Text = "Đã bật xuyên tường!";
-			Duration = 2;
-		})
-	else
-		if noclipConnection then
-			noclipConnection:Disconnect()
-			noclipConnection = nil
-		end
-		local char = player.Character
-		if char then
-			for _, part in pairs(char:GetDescendants()) do
-				if part:IsA("BasePart") then
-					part.CanCollide = true
-				end
-			end
-		end
-		game.StarterGui:SetCore("SendNotification", {
-			Title = "noclip";
-			Text = "Đã tắt xuyên tường!";
-			Duration = 2;
-		})
-	end
+    if noclipEnabled then
+        noclipConnection = game:GetService("RunService").Stepped:Connect(Noclip)
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "noclip",
+            Text = "Đã bật xuyên tường!",
+            Duration = 2;
+        })
+    else
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+        local char = player.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "noclip",
+            Text = "Đã tắt xuyên tường!",
+            Duration = 2;
+        })
+    end
 end)
 
 -- Auto teleport nếu rơi dưới map
 spawn(function()
-	while true do
-		local char = player.Character
-		if char then
-			local hrp = char:FindFirstChild("HumanoidRootPart")
-			if hrp and hrp.Position.Y < 2.5 then
-				hrp.CFrame = CFrame.new(hrp.Position.X, 5, hrp.Position.Z)
-			end
-		end
-		wait(0.15)
-	end
+    while true do
+        local char = player.Character
+        if char then
+            local hrp = char:FindFirstChild("HumanoidRootPart")
+            if hrp and hrp.Position.Y < 2.5 then
+                hrp.CFrame = CFrame.new(hrp.Position.X, 5, hrp.Position.Z)
+            end
+        end
+        task.wait(0.15)
+    end
 end)
