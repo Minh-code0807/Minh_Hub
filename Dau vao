@@ -134,76 +134,81 @@ local function createButton(name, callback)
     end)
 end
 
--- 1. Tp end (phiên bản mới)
+-- 1. Tp end (đã sửa theo yêu cầu)
 createButton("Tp end", function()
-    -- Kiểm tra và chuẩn bị nhân vật
-    local character = player.Character
-    if not character then
-        character = player.CharacterAdded:Wait()
-    end
-    
-    local humanoid = character:WaitForChild("Humanoid")
-    local hrp = character:WaitForChild("HumanoidRootPart")
-    
-    -- Cố định nhân vật và dịch chuyển
-    hrp.Anchored = true
-    task.wait(0.5)
-    hrp.CFrame = CFrame.new(-424, 30, -49041)
-    
-    -- Thông báo đang chờ baseplate
-    game.StarterGui:SetCore("SendNotification", {
-        Title = "TP End",
-        Text = "Đang chờ FinalBasePlate...",
-        Duration = 1,
-    })
-    
-    -- Chờ baseplate xuất hiện
-    repeat task.wait() until workspace.Baseplates:FindFirstChild("FinalBasePlate")
-    local BasePart = workspace.Baseplates:FindFirstChild("FinalBasePlate")
-    local OurLaw = BasePart:FindFirstChild("OutlawBase")
-    local Sen = OurLaw:FindFirstChild("Sentries")
-    
-    -- Kiểm tra và kích hoạt ghế pháo
-    if Sen:FindFirstChild("TurretSpot") and Sen.TurretSpot:FindFirstChild("MaximGun") and Sen.TurretSpot.MaximGun:FindFirstChild("VehicleSeat") then
-        task.wait(1.5)
-        
-        -- Kích hoạt tất cả ghế pháo
-        for i, v in pairs(Sen:FindFirstChild("TurretSpot"):GetChildren()) do
-            if v.Name == "MaximGun" and v:FindFirstChild("VehicleSeat") then
-                v.VehicleSeat.Disabled = false
-            end
+    local function performTeleport()
+        -- Kiểm tra và chuẩn bị nhân vật
+        local character = player.Character
+        if not character then
+            character = player.CharacterAdded:Wait()
         end
         
-        task.wait(0.5)
-        hrp.Anchored = false
+        local humanoid = character:WaitForChild("Humanoid")
+        local hrp = character:WaitForChild("HumanoidRootPart")
         
-        -- Thử ngồi vào ghế
-        repeat 
-            task.wait()
+        -- Cố định nhân vật và dịch chuyển
+        hrp.Anchored = true
+        hrp.CFrame = CFrame.new(-424, 30, -49041)
+        
+        -- Thông báo đang chờ baseplate
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "TP End",
+            Text = "Đang chờ FinalBasePlate...",
+            Duration = 1,
+        })
+        
+        -- Chờ baseplate xuất hiện
+        repeat task.wait() until workspace.Baseplates:FindFirstChild("FinalBasePlate")
+        local BasePart = workspace.Baseplates:FindFirstChild("FinalBasePlate")
+        local OurLaw = BasePart:FindFirstChild("OutlawBase")
+        local Sen = OurLaw:FindFirstChild("Sentries")
+        
+        -- Kiểm tra và kích hoạt ghế pháo
+        if Sen:FindFirstChild("TurretSpot") and Sen.TurretSpot:FindFirstChild("MaximGun") and Sen.TurretSpot.MaximGun:FindFirstChild("VehicleSeat") then
+            task.wait(1.5)
+            
+            -- Kích hoạt tất cả ghế pháo
             for i, v in pairs(Sen:FindFirstChild("TurretSpot"):GetChildren()) do
                 if v.Name == "MaximGun" and v:FindFirstChild("VehicleSeat") then
-                    hrp.CFrame = v:FindFirstChild("VehicleSeat").CFrame
+                    v.VehicleSeat.Disabled = false
                 end
             end
-        until humanoid.Sit == true
-        
-        -- Thông báo thành công
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "Thành công",
-            Text = "Đã dịch chuyển và ngồi pháo",
-            Duration = 3,
-        })
-    else
-        hrp.Anchored = false
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "Lỗi",
-            Text = "Không tìm thấy ghế pháo",
-            Duration = 3,
-        })
+            
+            task.wait(0.5)
+            hrp.Anchored = false
+            
+            -- Thử ngồi vào ghế
+            repeat 
+                task.wait()
+                for i, v in pairs(Sen:FindFirstChild("TurretSpot"):GetChildren()) do
+                    if v.Name == "MaximGun" and v:FindFirstChild("VehicleSeat") then
+                        hrp.CFrame = v:FindFirstChild("VehicleSeat").CFrame
+                    end
+                end
+            until humanoid.Sit == true
+            
+            -- Thông báo thành công
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "Thành công",
+                Text = "Đã dịch chuyển và ngồi pháo",
+                Duration = 3,
+            })
+        else
+            hrp.Anchored = false
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "Lỗi",
+                Text = "Không tìm thấy ghế pháo",
+                Duration = 3,
+            })
+        end
     end
+
+    -- Thực hiện teleport 2 lần cách nhau 0.5 giây
+    performTeleport() -- Lần 1
+    task.wait(0.5)
+    performTeleport() -- Lần 2
 end)
 
--- [Phần còn lại của script giữ nguyên...]
 -- 2. NPC Lock
 local oldMinZoom, oldMaxZoom = nil, nil
 local npcLockEnabled = false
