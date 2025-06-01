@@ -38,7 +38,7 @@ local uiList = Instance.new("UIListLayout")
 uiList.FillDirection = Enum.FillDirection.Horizontal
 uiList.HorizontalAlignment = Enum.HorizontalAlignment.Center
 uiList.VerticalAlignment = Enum.VerticalAlignment.Center
-uiList.Padding = UDim.new(0, 10)  -- Giảm khoảng cách để fit 4 nút
+uiList.Padding = UDim.new(0, 10)
 uiList.Parent = buttonTable
 
 -- Timer
@@ -71,7 +71,6 @@ task.spawn(function()
 end)
 
 -- Nút thu nhỏ/phóng to
-local minimized = false
 local minimizeBtn = Instance.new("TextButton")
 minimizeBtn.Size = UDim2.new(0, 40, 0, 40)
 minimizeBtn.Position = UDim2.new(1, -50, 0, 8)
@@ -108,15 +107,15 @@ smallBtn.MouseButton1Click:Connect(function()
     smallBtn.Visible = false
 end)
 
--- Hàm tạo nút (đã điều chỉnh để fit 4 nút)
+-- Hàm tạo nút
 local function createButton(name, callback)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 80, 0, 50)  -- Giảm width để fit 4 nút
+    btn.Size = UDim2.new(0, 80, 0, 50)
     btn.BackgroundColor3 = Color3.fromRGB(114, 137, 218)
     btn.Text = name
     btn.TextColor3 = Color3.fromRGB(255,255,255)
     btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 20  -- Giảm text size
+    btn.TextSize = 20
     btn.BorderSizePixel = 0
     btn.AutoButtonColor = true
     btn.Parent = buttonTable
@@ -134,20 +133,132 @@ local function createButton(name, callback)
     end)
 end
 
--- Biến lưu trạng thái Full Bright
-local originalBrightness = nil
-
--- 1. Tp end
+-- 1. Tp end (đã sửa theo yêu cầu)
 createButton("Tp end", function()
-    -- Code TP end như cũ
+    local function performTeleport()
+        -- Kiểm tra và chuẩn bị nhân vật
+        local character = player.Character
+        if not character then
+            character = player.CharacterAdded:Wait()
+        end
+        
+        local humanoid = character:WaitForChild("Humanoid")
+        local hrp = character:WaitForChild("HumanoidRootPart")
+        
+        -- Cố định nhân vật và dịch chuyển
+        hrp.Anchored = true
+        hrp.CFrame = CFrame.new(-424, 30, -49041)
+        
+        -- Thông báo đang chờ baseplate
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "TP End",
+            Text = "Đang chờ FinalBasePlate...",
+            Duration = 1,
+        })
+        
+        -- Chờ baseplate xuất hiện
+        repeat task.wait() until workspace.Baseplates:FindFirstChild("FinalBasePlate")
+        local BasePart = workspace.Baseplates:FindFirstChild("FinalBasePlate")
+        local OurLaw = BasePart:FindFirstChild("OutlawBase")
+        local Sen = OurLaw:FindFirstChild("Sentries")
+        
+        -- Kiểm tra và kích hoạt ghế pháo
+        if Sen:FindFirstChild("TurretSpot") and Sen.TurretSpot:FindFirstChild("MaximGun") and Sen.TurretSpot.MaximGun:FindFirstChild("VehicleSeat") then
+            task.wait(1.5)
+            
+            -- Kích hoạt tất cả ghế pháo
+            for i, v in pairs(Sen:FindFirstChild("TurretSpot"):GetChildren()) do
+                if v.Name == "MaximGun" and v:FindFirstChild("VehicleSeat") then
+                    v.VehicleSeat.Disabled = false
+                end
+            end
+            
+            task.wait(0.5)
+            hrp.Anchored = false
+            
+            -- Thử ngồi vào ghế
+            repeat 
+                task.wait()
+                for i, v in pairs(Sen:FindFirstChild("TurretSpot"):GetChildren()) do
+                    if v.Name == "MaximGun" and v:FindFirstChild("VehicleSeat") then
+                        hrp.CFrame = v:FindFirstChild("VehicleSeat").CFrame
+                    end
+                end
+            until humanoid.Sit == true
+            
+            -- Thông báo thành công
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "Thành công",
+                Text = "Đã dịch chuyển và ngồi pháo",
+                Duration = 3,
+            })
+        else
+            hrp.Anchored = false
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "Lỗi",
+                Text = "Không tìm thấy ghế pháo",
+                Duration = 3,
+            })
+        end
+    end
+
+    -- Thực hiện teleport 2 lần cách nhau 0.5 giây
+    performTeleport()
+    task.wait(0.5)
+    performTeleport()
 end)
 
 -- 2. NPC Lock
 local oldMinZoom, oldMaxZoom = nil, nil
 local npcLockEnabled = false
+local npcLockScript = nil
 
 createButton("NPC Lock", function()
-    -- Code NPC Lock như cũ
+    npcLockEnabled = not npcLockEnabled
+    if npcLockEnabled then
+        oldMinZoom = player.CameraMinZoomDistance
+        oldMaxZoom = player.CameraMaxZoomDistance
+        player.CameraMinZoomDistance = 0.5
+        player.CameraMaxZoomDistance = 50
+        
+        local success, err = pcall(function()
+            npcLockScript = loadstring(game:HttpGet("https://raw.githubusercontent.com/huybuda1/Anh-Con-PHD-Troll/refs/heads/main/AnhCon_TheNao_LaiManh.lua"))()
+            if type(npcLockScript) == 'function' then
+                npcLockScript()
+            end
+        end)
+        
+        if not success then
+            warn("Lỗi khi tải NPC Lock:", err)
+            npcLockEnabled = false
+            player.CameraMinZoomDistance = oldMinZoom or 0.5
+            player.CameraMaxZoomDistance = oldMaxZoom or 100
+            game.StarterGui:SetCore("SendNotification", {
+                Title = "Lỗi",
+                Text = "Không thể tải script NPC Lock",
+                Duration = 3,
+            })
+            return
+        end
+        
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "NPC Lock",
+            Text = "Đã bật NPC Lock!",
+            Duration = 2,
+        })
+    else
+        player.CameraMinZoomDistance = oldMinZoom or 0.5
+        player.CameraMaxZoomDistance = oldMaxZoom or 100
+        if npcLockScript then
+            pcall(function() npcLockScript:Disconnect() end)
+            npcLockScript = nil
+        end
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "NPC Lock",
+            Text = "Đã tắt NPC Lock!",
+            Duration = 2,
+        })
+    end
 end)
 
 -- 3. Noclip
@@ -155,13 +266,56 @@ local noclipEnabled = false
 local noclipConnection = nil
 
 createButton("noclip", function()
-    -- Code noclip như cũ
+    noclipEnabled = not noclipEnabled
+
+    local function Noclip()
+        local char = player.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = false
+                end
+            end
+        end
+    end
+
+    if noclipEnabled then
+        noclipConnection = game:GetService("RunService").Stepped:Connect(Noclip)
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "noclip",
+            Text = "Đã bật xuyên tường!",
+            Duration = 2,
+        })
+    else
+        if noclipConnection then
+            noclipConnection:Disconnect()
+            noclipConnection = nil
+        end
+        
+        local char = player.Character
+        if char then
+            for _, part in pairs(char:GetDescendants()) do
+                if part:IsA("BasePart") then
+                    part.CanCollide = true
+                end
+            end
+        end
+        
+        game.StarterGui:SetCore("SendNotification", {
+            Title = "noclip",
+            Text = "Đã tắt xuyên tường!",
+            Duration = 2,
+        })
+    end
 end)
 
 -- 4. Full Bright (nút mới)
+local originalBrightness = nil
+local fullBrightEnabled = false
+
 createButton("Full Bright", function()
     local lighting = game:GetService("Lighting")
-    local fullBrightEnabled = not fullBrightEnabled
+    fullBrightEnabled = not fullBrightEnabled
     
     if fullBrightEnabled then
         -- Lưu giá trị ánh sáng ban đầu
@@ -213,5 +367,15 @@ task.spawn(function()
             end
         end
         task.wait(0.15)
+    end
+end)
+
+-- Dọn dẹp khi GUI bị hủy
+gui.Destroying:Connect(function()
+    if noclipConnection then
+        noclipConnection:Disconnect()
+    end
+    if npcLockScript then
+        pcall(function() npcLockScript:Disconnect() end)
     end
 end)
