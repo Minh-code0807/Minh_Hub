@@ -1,174 +1,176 @@
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local TextService = game:GetService("TextService")
+local TweenService = game:GetService("TweenService")
 
--- Tối ưu hóa
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
--- Cấu hình (đã cập nhật)
-local SCAN_INTERVAL = 0.05
-local TELEPORT_DELAY = 0.75
-local FINAL_Y_POSITION = -15  -- Đã đổi thành -15 theo yêu cầu
-local MAX_TELEPORT_DURATION = 1.5
+-- Cấu hình
+local SCAN_INTERVAL = 0.3
+local TELEPORT_DELAY = 0.5
+local FINAL_Y_POSITION = -15
+local TELEPORT_SPEED = 100 -- Đơn vị studs/giây
 
 -- Trạng thái hệ thống
 local state = {
-    display = nil,
+    gui = nil,
+    textLabel = nil,
     scannedItems = {},
-    teleportQueue = {},
-    isProcessing = false,
-    scanConnection = nil,
-    teleportConnection = nil
+    isRunning = true,
+    teleporting = false
 }
 
--- Tạo bảng hiển thị
-local function createDisplay()
-    local board = Instance.new("Part")
-    board.Size = Vector3.new(8, 5, 0.2)
-    board.Position = humanoidRootPart.Position + Vector3.new(0, 3, -4)
-    board.Anchored = true
-    board.CanCollide = false
-    board.Transparency = 0.2
-    board.Color = Color3.fromRGB(30, 30, 40)
+-- Tạo GUI (ĐÃ SỬA)
+local function createGUI()
+    if state.gui then state.gui:Destroy() end
+
+    local screenGui = Instance.new("ScreenGui")
+    screenGui.Name = "BondScanner"
+    screenGui.Parent = player:WaitForChild("PlayerGui")
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    local frame = Instance.new("Frame")
+    frame.Size = UDim2.new(0.3, 0, 0.4, 0)
+    frame.Position = UDim2.new(0.05, 0, 0.1, 0)
+    frame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    frame.BackgroundTransparency = 0.3
+    frame.BorderSizePixel = 0
     
-    local surfaceGui = Instance.new("SurfaceGui", board)
-    surfaceGui.Face = Enum.NormalId.Front
-    
-    local textLabel = Instance.new("TextLabel", surfaceGui)
-    textLabel.Size = UDim2.new(1, 0, 1, 0)
+    local textLabel = Instance.new("TextLabel")
+    textLabel.Size = UDim2.new(0.95, 0, 0.95, 0)
+    textLabel.Position = UDim2.new(0.025, 0, 0.025, 0)
     textLabel.BackgroundTransparency = 1
     textLabel.TextColor3 = Color3.new(1, 1, 1)
     textLabel.TextXAlignment = Enum.TextXAlignment.Left
     textLabel.TextYAlignment = Enum.TextYAlignment.Top
+    textLabel.Font = Enum.Font.Code
+    textLabel.TextSize = 14
+    textLabel.TextStrokeTransparency = 0.7
+    textLabel.Text = "Đang khởi động hệ thống quét bond..."
+    textLabel.TextWrapped = true
+    textLabel.Parent = frame
     
-    board.Parent = workspace
-    return textLabel
+    frame.Parent = screenGui
+    
+    state.gui = screenGui
+    state.textLabel = textLabel
 end
 
--- Quét vật thể
+-- Quét vật thể (Tối ưu)
 local function scanItems()
     local found = {}
     if workspace:FindFirstChild("RuntimeItems") and workspace.RuntimeItems:FindFirstChild("bond") then
         for _, item in ipairs(workspace.RuntimeItems.bond:GetChildren()) do
             if item:IsA("BasePart") then
-                local roundedPos = Vector3.new(
-                    math.floor(item.Position.X * 100 + 0.5) / 100,
-                    math.floor(item.Position.Y * 100 + 0.5) / 100,
-                    math.floor(item.Position.Z * 100 + 0.5) / 100
-                )
-                
-                local exists = false
-                for _, scanned in ipairs(state.scannedItems) do
-                    if (scanned.position - roundedPos).Magnitude < 0.1 then
-                        exists = true
-                        break
-                    end
-                end
-                
-                if not exists then
-                    table.insert(found, {
-                        position = roundedPos,
-                        name = item.Name
-                    })
-                end
+                table.insert(found, {
+                    instance = item,
+                    position = item.Position,
+                    name = item.Name
+                })
             end
         end
     end
     return found
 end
 
--- Cập nhật hiển thị
-local function updateDisplay()
-    local content = "QUÉT VẬT THỂ\n\n"
-    for i, item in ipairs(state.scannedItems) do
-        content ..= string.format("%d. %s - X:%.2f Y:%.2f Z:%.2f\n", 
-            i, item.name, item.position.X, item.position.Y, item.position.Z)
-    end
-    state.display.Text = content
-end
-
--- Di chuyển xuyên tường
-local function teleportTo(targetPos)
-    humanoidRootPart.Anchored = true
-    humanoidRootPart.CanCollide = false
+-- Cập nhật GUI
+local function updateGUI()
+    if not state.textLabel then return end
     
-    local startPos = humanoidRootPart.Position
-    local startTime = os.clock()
-    local direction = (targetPos - startPos).Unit
-    
-    state.teleportConnection = RunService.Heartbeat:Connect(function()
-        local progress = math.min((os.clock() - startTime) / MAX_TELEPORT_DURATION, 1)
-        humanoidRootPart.Position = startPos + (direction * (targetPos - startPos) * progress)
-        
-        if progress >= 1 then
-            state.teleportConnection:Disconnect()
-            humanoidRootPart.Position = targetPos
+    local content = "HỆ THỐNG QUÉT BOND\n\n"
+    if #state.scannedItems == 0 then
+        content = content .. "Chưa tìm thấy bond nào"
+    else
+        for i, item in ipairs(state.scannedItems) do
+            content = content .. string.format("%d. %s - X:%.1f Y:%.1f Z:%.1f\n", 
+                i, item.name, item.position.X, item.position.Y, item.position.Z)
         end
-    end)
+    end
     
-    repeat task.wait() until (humanoidRootPart.Position - targetPos).Magnitude < 2
+    state.textLabel.Text = content
 end
 
--- Tải các script từ GitHub
-local function loadGitHubScripts()
-    state.display.Text = "Đang tải Nhặt bond..."
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Minh-code0807/HUB/refs/heads/main/Nh%E1%BA%B7t%20bond"))()
-    task.wait(1)
+-- Di chuyển mượt đến vị trí (ĐÃ SỬA)
+local function smoothTeleport(targetPos)
+    if state.teleporting then return end
+    state.teleporting = true
     
-    state.display.Text = "Đang tải Nhìn bond..."
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/Minh-code0807/HUB/refs/heads/main/Nh%C3%ACn%20bond"))()
-    task.wait(1)
+    humanoidRootPart.Anchored = true
+    local startPos = humanoidRootPart.Position
+    local distance = (targetPos - startPos).Magnitude
+    local duration = distance / TELEPORT_SPEED
     
-    state.display.Text = "Đang tải FASTCASTLE..."
-    loadstring(game:HttpGet("https://raw.githubusercontent.com/ringtaa/castletpfast.github.io/refs/heads/main/FASTCASTLE.lua"))()
-    task.wait(5)  -- Chờ 5 giây như yêu cầu
+    local tweenInfo = TweenInfo.new(
+        duration,
+        Enum.EasingStyle.Linear,
+        Enum.EasingDirection.Out,
+        0,
+        false,
+        0
+    )
+    
+    local tween = TweenService:Create(humanoidRootPart, tweenInfo, {Position = targetPos})
+    tween:Play()
+    
+    tween.Completed:Wait()
+    humanoidRootPart.Anchored = false
+    state.teleporting = false
 end
 
--- Xử lý hàng đợi
-local function processQueue()
-    if state.isProcessing then return end
-    state.isProcessing = true
-    
-    loadGitHubScripts()
-    
-    for _, item in ipairs(state.teleportQueue) do
-        teleportTo(item.position)
-        updateDisplay()
+-- Xử lý tự động thu thập
+local function autoCollect()
+    while state.isRunning do
+        if #state.scannedItems > 0 and not state.teleporting then
+            local target = state.scannedItems[1]
+            state.textLabel.Text = "Đang di chuyển đến bond: "..target.name
+            smoothTeleport(target.position)
+            table.remove(state.scannedItems, 1)
+            updateGUI()
+        end
         task.wait(TELEPORT_DELAY)
     end
-    
-    -- Di chuyển đến Y = -15 cuối cùng
-    teleportTo(Vector3.new(
-        humanoidRootPart.Position.X,
-        FINAL_Y_POSITION,  -- -15
-        humanoidRootPart.Position.Z
-    ))
-    
-    state.isProcessing = false
 end
 
--- Hệ thống chính
+-- Hệ thống chính (ĐÃ SỬA)
 local function startSystem()
-    state.display = createDisplay()
+    createGUI()
     
-    state.scanConnection = RunService.Heartbeat:Connect(function()
-        local newItems = scanItems()
-        if #newItems > 0 then
-            for _, item in ipairs(newItems) do
-                table.insert(state.scannedItems, item)
-                table.insert(state.teleportQueue, item)
-            end
-            updateDisplay()
-            
-            if not state.isProcessing then
-                task.spawn(processQueue)
-            end
-        end
+    -- Xử lý khi nhân vật thay đổi
+    player.CharacterAdded:Connect(function(newChar)
+        character = newChar
+        humanoid = character:WaitForChild("Humanoid")
+        humanoidRootPart = character:WaitForChild("HumanoidRootPart")
     end)
+    
+    -- Bắt đầu quét và tự động thu thập
+    coroutine.wrap(function()
+        while state.isRunning do
+            local newItems = scanItems()
+            if #newItems > 0 then
+                for _, item in ipairs(newItems) do
+                    table.insert(state.scannedItems, item)
+                end
+                updateGUI()
+            end
+            task.wait(SCAN_INTERVAL)
+        end
+    end)()
+    
+    coroutine.wrap(autoCollect)()
+end
+
+-- Dừng hệ thống
+local function stopSystem()
+    state.isRunning = false
+    if state.gui then
+        state.gui:Destroy()
+    end
 end
 
 -- Khởi động
 startSystem()
+
+-- Để dừng hệ thống khi cần:
+-- stopSystem()
