@@ -1,375 +1,133 @@
---[[ 
-  ===== BOND FARMER DEBUG MODE =====
-  Phiên bản đặc biệt với chế độ debug chi tiết
-]]
-
+-- Script Farm Bond Liên Tục
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
-local HttpService = game:GetService("HttpService")
+local TweenService = game:GetService("TweenService")
 
-local DEBUG_MODE = true -- Bật để xem log chi tiết
+-- Cấu hình
+local TARGET_POSITION = Vector3.new(-428.75, 26.07, -49040.91)
+local MOVEMENT_SPEED = 1000
+local SCAN_INTERVAL = 0.1
+local ARRIVAL_THRESHOLD = 5
+local STUCK_TIMEOUT = 5 -- Giây
+local FALLBACK_Y = -100 -- Giá trị Y khi bị kẹt
+
+-- Khởi tạo
 local player = Players.LocalPlayer
-
--- Tạo ID duy nhất cho mỗi lần chạy script
-local SESSION_ID = HttpService:GenerateGUID(false)
-print("===== BOND FARMER SESSION:", SESSION_ID, "=====")
-
--- Hàm debug có điều kiện
-local function DebugPrint(...)
-    if DEBUG_MODE then
-        print("[DEBUG]", os.date("%X"), ...)
-    end
-end
-
--- Khởi tạo nhân vật
-local function WaitForCharacter()
-    DebugPrint("Đang chờ nhân vật...")
-    local char = player.Character or player.CharacterAdded:Wait()
-    DebugPrint("Nhân vật đã sẵn sàng")
-    return char
-end
-
-local character = WaitForCharacter()
+local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
--- Cấu hình có thể tùy chỉnh
-local CONFIG = {
-    MovementSpeed = 50, -- Giảm tốc độ để tránh bị phát hiện
-    ScanInterval = 0.5,
-    ArrivalThreshold = 5,
-    ScanRadius = 100,
-    MaxCycles = 3,
-    BondKeywords = {"bond", "money", "coin", "reward", "dollar"},
-    Waypoints = {
-        Vector3.new(56.22, 3.00, 29941.12),
-        Vector3.new(-428.75, 26.07, -49040.91)
-    }
-}
-
-DebugPrint("Cấu hình đã tải:", HttpService:JSONEncode(CONFIG))
-
--- Trạng thái hệ thống
-local STATE = {
-    Active = true,
-    Scanning = false,
-    CurrentTarget = nil,
-    BondsCollected = 0,
-    CurrentCycle = 1,
-    GUI = nil,
-    Connections = {}
-}
-
--- Tạo GUI debug
-local function CreateDebugGUI()
-    if STATE.GUI then STATE.GUI:Destroy() end
-
-    local ui = Instance.new("ScreenGui")
-    ui.Name = "BondFarmerDebugUI_"..SESSION_ID
-    ui.ResetOnSpawn = false
-    ui.Parent = player:WaitForChild("PlayerGui")
-
-    local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0.3, 0, 0.4, 0)
-    mainFrame.Position = UDim2.new(0.02, 0, 0.5, 0)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    mainFrame.BackgroundTransparency = 0.2
-    mainFrame.Parent = ui
-
-    local scroll = Instance.new("ScrollingFrame")
-    scroll.Size = UDim2.new(1, 0, 1, 0)
-    scroll.CanvasSize = UDim2.new(0, 0, 2, 0)
-    scroll.ScrollingDirection = Enum.ScrollingDirection.Y
-    scroll.Parent = mainFrame
-
-    local logLabel = Instance.new("TextLabel")
-    logLabel.Name = "DebugLog"
-    logLabel.Size = UDim2.new(1, -10, 1, -10)
-    logLabel.Position = UDim2.new(0, 5, 0, 5)
-    logLabel.TextXAlignment = Enum.TextXAlignment.Left
-    logLabel.TextYAlignment = Enum.TextYAlignment.Top
-    logLabel.TextWrapped = true
-    logLabel.RichText = true
-    logLabel.BackgroundTransparency = 1
-    logLabel.TextColor3 = Color3.new(1, 1, 1)
-    logLabel.Font = Enum.Font.Code
-    logLabel.TextSize = 14
-    logLabel.Parent = scroll
-
-    STATE.GUI = ui
-    return ui
-end
-
--- Cập nhật log debug
-local function UpdateDebugLog(message)
-    if not STATE.GUI then return end
+-- Hàm di chuyển siêu tốc cải tiến
+local function TurboMoveTo(target)
+    humanoid.WalkSpeed = MOVEMENT_SPEED
+    humanoid.AutoRotate = false
     
-    local logLabel = STATE.GUI:FindFirstChild("DebugLog", true)
-    if logLabel then
-        local timestamp = os.date("[%X]")
-        logLabel.Text = timestamp.." "..message.."\n"..logLabel.Text
-    end
-    DebugPrint(message)
-end
-
--- Kiểm tra bond nâng cao
-local function IsBond(obj)
-    if not obj:IsA("BasePart") then
-        return false
-    end
-
-    -- Debug thông tin đối tượng
-    local debugInfo = {
-        Name = obj.Name,
-        Parent = obj.Parent and obj.Parent.Name or "nil",
-        ClassName = obj.ClassName,
-        Position = obj.Position
-    }
-    UpdateDebugLog("Kiểm tra đối tượng: "..HttpService:JSONEncode(debugInfo))
-
-    -- Kiểm tra tên và parent name
-    local lowerName = obj.Name:lower()
-    for _, keyword in ipairs(CONFIG.BondKeywords) do
-        if lowerName:find(keyword:lower()) then
-            UpdateDebugLog("Phát hiện bond qua từ khóa: "..keyword)
-            return true
-        end
-    end
-
-    -- Kiểm tra các thành phần con đặc biệt
-    for _, child in ipairs(obj:GetChildren()) do
-        if child:IsA("StringValue") and child.Name:lower():find("bond") then
-            UpdateDebugLog("Phát hiện bond qua StringValue: "..child.Name)
-            return true
-        end
-    end
-
-    return false
-end
-
--- Tìm bond với debug chi tiết
-local function FindNearestBond()
-    UpdateDebugLog("Bắt đầu quét bond trong bán kính "..CONFIG.ScanRadius)
-    
-    local nearest = nil
-    local minDistance = CONFIG.ScanRadius
-    local totalScanned = 0
-    local potentialBonds = {}
-
-    for _, obj in ipairs(workspace:GetDescendants()) do
-        if IsBond(obj) then
-            local dist = (obj.Position - humanoidRootPart.Position).Magnitude
-            totalScanned = totalScanned + 1
-            
-            table.insert(potentialBonds, {
-                name = obj.Name,
-                distance = math.floor(dist),
-                position = obj.Position
-            })
-
-            if dist < minDistance then
-                nearest = {
-                    Part = obj,
-                    Position = obj.Position,
-                    Distance = dist
-                }
-                minDistance = dist
-            end
-        end
-    end
-
-    -- Log kết quả quét
-    UpdateDebugLog(string.format(
-        "Đã quét %d đối tượng, tìm thấy %d bond tiềm năng",
-        totalScanned, #potentialBonds
-    ))
-    
-    if #potentialBonds > 0 then
-        UpdateDebugLog("Các bond tiềm năng: "..HttpService:JSONEncode(potentialBonds))
-    end
-
-    return nearest
-end
-
--- Di chuyển với debug
-local function MoveToTarget(target)
-    if not humanoidRootPart or not humanoid then
-        UpdateDebugLog("LỖI: Không tìm thấy humanoid hoặc root part")
-        return false
-    end
-
-    UpdateDebugLog(string.format(
-        "Bắt đầu di chuyển đến %s (cách %.1f studs)",
-        tostring(target),
-        (target - humanoidRootPart.Position).Magnitude
-    ))
-
-    humanoid.WalkSpeed = CONFIG.MovementSpeed
     local startTime = os.clock()
     local lastPosition = humanoidRootPart.Position
-    local lastMoveTime = startTime
-
+    
+    -- Tính hướng di chuyển
+    local direction = (target - humanoidRootPart.Position).Unit
+    humanoidRootPart.CFrame = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + direction)
+    
+    -- Bắt đầu di chuyển
     humanoid:MoveTo(target)
-
-    while STATE.Active and humanoidRootPart and humanoid do
+    
+    -- Theo dõi di chuyển
+    while humanoidRootPart and humanoid do
         local currentTime = os.clock()
         local distance = (humanoidRootPart.Position - target).Magnitude
         local movedDistance = (humanoidRootPart.Position - lastPosition).Magnitude
         
-        -- Cập nhật vị trí nếu đã di chuyển
-        if movedDistance > 1 then
-            lastPosition = humanoidRootPart.Position
-            lastMoveTime = currentTime
-        end
-
         -- Kiểm tra đến đích
-        if distance < CONFIG.ArrivalThreshold then
-            UpdateDebugLog("Đã đến đích")
-            return true
+        if distance < ARRIVAL_THRESHOLD then
+            break
         end
-
+        
         -- Kiểm tra bị kẹt
-        if currentTime - lastMoveTime > 2 then
-            UpdateDebugLog("Cảnh báo: Có thể bị kẹt, đang thử nhảy")
-            humanoid.Jump = true
+        if currentTime - startTime > STUCK_TIMEOUT and movedDistance < 10 then
+            print("Phát hiện bị kẹt, kích hoạt chế độ khẩn cấp!")
+            humanoidRootPart.CFrame = CFrame.new(
+                humanoidRootPart.Position.X,
+                FALLBACK_Y,
+                humanoidRootPart.Position.Z
+            )
             task.wait(0.5)
-            humanoid:MoveTo(target)
-            lastMoveTime = os.clock()
+            startTime = os.clock() -- Reset timer
         end
-
-        -- Kiểm tra timeout
-        if currentTime - startTime > 15 then
-            UpdateDebugLog("Timeout di chuyển sau 15 giây")
-            return false
-        end
-
+        
+        -- Cập nhật hướng di chuyển
+        direction = (target - humanoidRootPart.Position).Unit
+        humanoidRootPart.CFrame = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + direction)
+        
+        lastPosition = humanoidRootPart.Position
         RunService.Heartbeat:Wait()
     end
-
-    return false
-end
-
--- Thu thập bond với debug
-local function CollectBond(bondData)
-    if not bondData or not bondData.Part then
-        UpdateDebugLog("LỖI: Dữ liệu bond không hợp lệ")
-        return
-    end
-
-    UpdateDebugLog(string.format(
-        "Bắt đầu thu thập bond: %s (cách %.1f studs)",
-        bondData.Part.Name,
-        bondData.Distance
-    ))
-
-    STATE.CurrentTarget = bondData
-    UpdateDebugLog("Đang di chuyển đến bond...")
     
-    if MoveToTarget(bondData.Position) then
-        UpdateDebugLog("Đã đến bond, đang thu thập...")
-        
-        -- Thử các phương pháp thu thập khác nhau
-        local collectionMethods = {
-            function() bondData.Part:Destroy() end,
-            function() firetouchinterest(humanoidRootPart, bondData.Part, 0) end,
-            function() firetouchinterest(humanoidRootPart, bondData.Part, 1) end
-        }
-
-        for i, method in ipairs(collectionMethods) do
-            pcall(method)
-            UpdateDebugLog("Đã thử phương pháp thu thập #"..i)
-            task.wait(0.2)
-        end
-
-        STATE.BondsCollected = STATE.BondsCollected + 1
-        UpdateDebugLog(string.format(
-            "Thu thập thành công! Tổng bond: %d",
-            STATE.BondsCollected
-        ))
-    else
-        UpdateDebugLog("Không thể di chuyển đến bond")
-    end
-
-    STATE.CurrentTarget = nil
+    humanoid.AutoRotate = true
 end
 
--- Vòng lặp chính
-local function MainLoop()
-    CreateDebugGUI()
-    UpdateDebugLog("Hệ thống khởi động thành công")
-    UpdateDebugLog("Phiên bản script: "..SESSION_ID)
-
-    -- Kết nối sự kiện respawn
-    table.insert(STATE.Connections, player.CharacterAdded:Connect(function(newChar)
-        UpdateDebugLog("Phát hiện nhân vật mới, đang reset...")
-        character = newChar
-        humanoid = newChar:WaitForChild("Humanoid")
-        humanoidRootPart = newChar:WaitForChild("HumanoidRootPart")
-        CreateDebugGUI()
-        UpdateDebugLog("Reset thành công sau respawn")
-    end))
-
-    -- Bắt đầu quét bond
-    while STATE.Active and STATE.CurrentCycle <= CONFIG.MaxCycles do
-        UpdateDebugLog(string.format(
-            "Bắt đầu chu kỳ %d/%d",
-            STATE.CurrentCycle,
-            CONFIG.MaxCycles
-        ))
-
-        -- Quét bond gần nhất
-        local bond = FindNearestBond()
-        if bond then
-            CollectBond(bond)
-        else
-            UpdateDebugLog("Không tìm thấy bond, đang di chuyển theo waypoints...")
+-- Hàm quét bond nâng cao
+local function EnhancedScan()
+    local foundBond = false
+    
+    -- Quét tất cả đối tượng trong phạm vi
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and (obj.Name:lower():find("bond") or obj.Parent.Name:lower():find("bond")) then
+            -- Canh chỉnh camera
+            local camera = game.Workspace.CurrentCamera
+            camera.CFrame = CFrame.lookAt(camera.CFrame.Position, obj.Position)
             
-            -- Di chuyển theo waypoints nếu không tìm thấy bond
-            for i, waypoint in ipairs(CONFIG.Waypoints) do
-                if not STATE.Active then break end
-                
-                UpdateDebugLog(string.format(
-                    "Di chuyển đến waypoint %d/%d: %s",
-                    i,
-                    #CONFIG.Waypoints,
-                    tostring(waypoint)
-                ))
-                
-                MoveToTarget(waypoint)
-                task.wait(1) -- Chờ ổn định
-                
-                -- Quét lại sau khi di chuyển
-                bond = FindNearestBond()
-                if bond then
-                    CollectBond(bond)
-                    break
-                end
+            -- Chạy script thu thập
+            local success, err = pcall(function()
+                loadstring(game:HttpGet("https://raw.githubusercontent.com/Minh-code0807/HUB/main/Nh%E1%BA%B7t%20bond.lua"))()
+            end)
+            
+            if success then
+                print("Đã thu thập bond thành công!")
+                foundBond = true
+            else
+                warn("Lỗi khi chạy script thu thập:", err)
             end
+            
+            break -- Chỉ xử lý 1 bond tại 1 thời điểm
         end
-
-        STATE.CurrentCycle = STATE.CurrentCycle + 1
-        task.wait(1) -- Nghỉ giữa các chu kỳ
     end
-
-    UpdateDebugLog(string.format(
-        "Kết thúc! Tổng bond thu thập: %d",
-        STATE.BondsCollected
-    ))
+    
+    return foundBond
 end
 
--- Xử lý lỗi tổng thể
-local function SafeStart()
-    local success, err = pcall(MainLoop)
-    if not success then
-        UpdateDebugLog("LỖI NGHIÊM TRỌNG: "..tostring(err))
+-- Chu trình chính liên tục
+local function ContinuousFarm()
+    while true do
+        -- Di chuyển siêu tốc đến mục tiêu
+        TurboMoveTo(TARGET_POSITION)
         
-        -- Thử khởi động lại sau 5 giây
-        task.wait(5)
-        UpdateDebugLog("Đang thử khởi động lại...")
-        SafeStart()
+        -- Quét bond trong khi di chuyển
+        local scanStart = os.clock()
+        local foundBond = false
+        
+        while os.clock() - scanStart < STUCK_TIMEOUT do
+            foundBond = EnhancedScan()
+            if foundBond then
+                break
+            end
+            task.wait(SCAN_INTERVAL)
+        end
+        
+        -- Nếu không tìm thấy bond, tiếp tục di chuyển
+        if not foundBond then
+            print("Không tìm thấy bond, tiếp tục di chuyển...")
+        end
     end
 end
 
--- Bắt đầu hệ thống an toàn
-UpdateDebugLog("Đang khởi động hệ thống...")
-SafeStart()
+-- Xử lý respawn
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    humanoid = newChar:WaitForChild("Humanoid")
+    humanoidRootPart = newChar:WaitForChild("HumanoidRootPart")
+    print("Đã respawn, tiếp tục farm...")
+end)
+
+-- Bắt đầu hệ thống
+ContinuousFarm()
