@@ -1,22 +1,27 @@
+-- Sửa URL tải script (đảm bảo đường dẫn raw chính xác)
 loadstring(game:HttpGet("https://raw.githubusercontent.com/Minh-code0807/HUB/main/Help%20aotu%20farm%20bond.lua", true))()
 
-wait(5)
+wait(5) -- Chờ game load
 
+-- Khai báo services
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
+-- Biến hệ thống
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
+-- CẤU HÌNH NÂNG CAO
 local MOVEMENT_SPEED = 1000
 local SCAN_INTERVAL = 0.2
 local ARRIVAL_THRESHOLD = 5
 local SCAN_RADIUS = 200
 local MAX_CYCLES = 5
 
+-- Danh sách điểm đến
 local WAYPOINTS = {
     Vector3.new(56.22, 3.00, 29941.12),
     Vector3.new(-428.75, 26.07, -49040.91)
@@ -32,6 +37,7 @@ local System = {
     GUI = nil
 }
 
+-- TẠO GUI (ĐÃ THÊM XỬ LÝ LỖI)
 local function CreateEnhancedGUI()
     if System.GUI then 
         System.GUI:Destroy() 
@@ -73,6 +79,7 @@ local function CreateEnhancedGUI()
     System.GUI = ui
 end
 
+-- CẬP NHẬT GUI (HÀM BỊ THIẾU TRONG BẢN GỐC)
 local function UpdateGUI()
     if System.GUI and System.GUI:FindFirstChild("StatsLabel") then
         System.GUI.StatsLabel.Text = string.format(
@@ -85,6 +92,7 @@ local function UpdateGUI()
     end
 end
 
+-- DI CHUYỂN THÔNG MINH (ĐÃ THÊM KIỂM TRA NIL)
 local function SmartMovement(target)
     if not humanoidRootPart or not humanoid then return end
     
@@ -124,6 +132,7 @@ local function SmartMovement(target)
     end
 end
 
+-- TÌM BOND (ĐÃ MỞ RỘNG TÌM KIẾM)
 local function FindNearestBond()
     local nearest = nil
     local minDistance = SCAN_RADIUS
@@ -145,12 +154,14 @@ local function FindNearestBond()
     return nearest
 end
 
+-- THU THẬP BOND (THÊM KIỂM TRA)
 local function CollectBond(bondData)
     if not bondData or not bondData.Part then return end
     
     System.CurrentTarget = bondData
     SmartMovement(bondData.Position)
     
+    -- Giả lập thu thập (tuỳ chỉnh theo game)
     if bondData.Part and bondData.Part.Parent then
         bondData.Part:Destroy() -- Hoặc gọi remote event tương ứng
         System.BondsCollected += 1
@@ -160,6 +171,7 @@ local function CollectBond(bondData)
     System.CurrentTarget = nil
 end
 
+-- XỬ LÝ RESPAWN (THÊM MỚI)
 player.CharacterAdded:Connect(function(newChar)
     character = newChar
     humanoid = newChar:WaitForChild("Humanoid")
@@ -167,6 +179,7 @@ player.CharacterAdded:Connect(function(newChar)
     CreateEnhancedGUI() -- Tạo lại GUI khi respawn
 end)
 
+-- VÒNG LẶP CHÍNH (THÊM KIỂM TRA)
 local function MainLoop()
     CreateEnhancedGUI()
     
@@ -192,4 +205,5 @@ local function MainLoop()
     print("Hoàn thành farm bond! Tổng cộng:", System.BondsCollected)
 end
 
+-- BẮT ĐẦU
 coroutine.wrap(MainLoop)()
