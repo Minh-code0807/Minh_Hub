@@ -22,7 +22,7 @@ local state = {
     teleporting = false
 }
 
--- Tạo GUI (ĐÃ SỬA)
+-- Tạo GUI (ĐÃ CẢI THIỆN)
 local function createGUI()
     if state.gui then state.gui:Destroy() end
 
@@ -48,7 +48,7 @@ local function createGUI()
     textLabel.Font = Enum.Font.Code
     textLabel.TextSize = 14
     textLabel.TextStrokeTransparency = 0.7
-    textLabel.Text = "Đang khởi động hệ thống quét bond..."
+    textLabel.Text = "Đang khởi động hệ thống quét bond...\n\nĐang quét..."
     textLabel.TextWrapped = true
     textLabel.Parent = frame
     
@@ -58,12 +58,14 @@ local function createGUI()
     state.textLabel = textLabel
 end
 
--- Quét vật thể (Tối ưu)
+-- Quét vật thể (ĐÃ CẢI THIỆN)
 local function scanItems()
     local found = {}
-    if workspace:FindFirstChild("RuntimeItems") and workspace.RuntimeItems:FindFirstChild("bond") then
-        for _, item in ipairs(workspace.RuntimeItems.bond:GetChildren()) do
-            if item:IsA("BasePart") then
+    
+    -- Kiểm tra và quét tất cả các thư mục có thể chứa bond
+    local function scanFolder(folder)
+        for _, item in ipairs(folder:GetDescendants()) do
+            if item:IsA("BasePart") and string.find(string.lower(item.Name), "bond") then
                 table.insert(found, {
                     instance = item,
                     position = item.Position,
@@ -72,17 +74,30 @@ local function scanItems()
             end
         end
     end
+
+    -- Quét workspace và các thư mục con quan trọng
+    if workspace:FindFirstChild("RuntimeItems") then
+        scanFolder(workspace.RuntimeItems)
+    end
+    
+    -- Quét thêm các vị trí khác nếu cần
+    scanFolder(workspace)
+    
     return found
 end
 
--- Cập nhật GUI
+-- Cập nhật GUI (ĐÃ CẢI THIỆN)
 local function updateGUI()
     if not state.textLabel then return end
     
     local content = "HỆ THỐNG QUÉT BOND\n\n"
+    content = content .. string.format("Trạng thái: %s\n", 
+        state.teleporting and "Đang di chuyển" or "Đang quét")
+    
     if #state.scannedItems == 0 then
         content = content .. "Chưa tìm thấy bond nào"
     else
+        content = content .. string.format("Tìm thấy %d bond:\n", #state.scannedItems)
         for i, item in ipairs(state.scannedItems) do
             content = content .. string.format("%d. %s - X:%.1f Y:%.1f Z:%.1f\n", 
                 i, item.name, item.position.X, item.position.Y, item.position.Z)
@@ -92,48 +107,62 @@ local function updateGUI()
     state.textLabel.Text = content
 end
 
--- Di chuyển mượt đến vị trí (ĐÃ SỬA)
+-- Di chuyển mượt đến vị trí (ĐÃ CẢI THIỆN)
 local function smoothTeleport(targetPos)
-    if state.teleporting then return end
+    if state.teleporting or not humanoidRootPart or not targetPos then return end
     state.teleporting = true
+    updateGUI()
     
-    humanoidRootPart.Anchored = true
-    local startPos = humanoidRootPart.Position
-    local distance = (targetPos - startPos).Magnitude
-    local duration = distance / TELEPORT_SPEED
+    local success, err = pcall(function()
+        humanoidRootPart.Anchored = true
+        local startPos = humanoidRootPart.Position
+        local distance = (targetPos - startPos).Magnitude
+        local duration = distance / TELEPORT_SPEED
+        
+        local tweenInfo = TweenInfo.new(
+            duration,
+            Enum.EasingStyle.Linear,
+            Enum.EasingDirection.Out,
+            0,
+            false,
+            0
+        )
+        
+        local tween = TweenService:Create(humanoidRootPart, tweenInfo, {Position = targetPos})
+        tween:Play()
+        tween.Completed:Wait()
+    end)
     
-    local tweenInfo = TweenInfo.new(
-        duration,
-        Enum.EasingStyle.Linear,
-        Enum.EasingDirection.Out,
-        0,
-        false,
-        0
-    )
-    
-    local tween = TweenService:Create(humanoidRootPart, tweenInfo, {Position = targetPos})
-    tween:Play()
-    
-    tween.Completed:Wait()
-    humanoidRootPart.Anchored = false
+    if humanoidRootPart then
+        humanoidRootPart.Anchored = false
+    end
     state.teleporting = false
+    updateGUI()
+    
+    if not success then
+        warn("Lỗi khi teleport: "..tostring(err))
+    end
 end
 
--- Xử lý tự động thu thập
+-- Xử lý tự động thu thập (ĐÃ CẢI THIỆN)
 local function autoCollect()
     while state.isRunning do
         if #state.scannedItems > 0 and not state.teleporting then
             local target = state.scannedItems[1]
-            state.textLabel.Text = "Đang di chuyển đến bond: "..target.name
-            smoothTeleport(target.position)
-            table.remove(state.scannedItems, 1)
-            updateGUI()
+            if target and target.instance and target.instance.Parent then
+                smoothTeleport(target.position)
+                task.wait(0.5) -- Chờ ổn định
+                table.remove(state.scannedItems, 1)
+                updateGUI()
+            else
+                table.remove(state.scannedItems, 1) -- Loại bỏ bond không tồn tại
+            end
         end
         task.wait(TELEPORT_DELAY)
     end
 end
 
--- Hệ thống chính (ĐÃ SỬA)
+-- Hệ thống chính (ĐÃ CẢI THIỆN)
 local function startSystem()
     createGUI()
     
@@ -142,34 +171,23 @@ local function startSystem()
         character = newChar
         humanoid = character:WaitForChild("Humanoid")
         humanoidRootPart = character:WaitForChild("HumanoidRootPart")
+        updateGUI()
     end)
     
-    -- Bắt đầu quét và tự động thu thập
+    -- Bắt đầu quét định kỳ
     coroutine.wrap(function()
         while state.isRunning do
-            local newItems = scanItems()
-            if #newItems > 0 then
-                for _, item in ipairs(newItems) do
-                    table.insert(state.scannedItems, item)
-                end
-                updateGUI()
-            end
+            state.scannedItems = scanItems() -- Cập nhật toàn bộ danh sách
+            updateGUI()
             task.wait(SCAN_INTERVAL)
         end
     end)()
     
+    -- Bắt đầu tự động thu thập
     coroutine.wrap(autoCollect)()
 end
 
--- Dừng hệ thống
-local function stopSystem()
-    state.isRunning = false
-    if state.gui then
-        state.gui:Destroy()
-    end
-end
-
--- Khởi động
+-- Khởi động hệ thống
 startSystem()
 
 -- Để dừng hệ thống khi cần:
