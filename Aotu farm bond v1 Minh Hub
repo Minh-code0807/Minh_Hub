@@ -1,3 +1,5 @@
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Minh-code0807/HUB/refs/heads/main/Help%20aotu%20farm%20bond"))()
+wait (7.5)
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -7,252 +9,153 @@ local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
--- Cấu hình hệ thống
-local SCAN_INTERVAL = 0.2
-local TELEPORT_DURATION = 0.5
-local SCAN_RADIUS = 200
-local WALK_SPEED = 32
-local PRE_TELEPORT_SCRIPT_URL = "https://raw.githubusercontent.com/Minh-code0807/HUB/refs/heads/main/Help%20aotu%20farm%20bond"
-local PRE_TELEPORT_DELAY = 5 -- 5 giây chờ sau khi load script
+-- CẤU HÌNH NÂNG CAO
+local MOVEMENT_SPEED = 1000 -- Tốc độ di chuyển (studs/giây)
+local SCAN_INTERVAL = 0.2 -- Thời gian giữa các lần quét
+local ARRIVAL_THRESHOLD = 5 -- Khoảng cách đạt đích
+local SCAN_RADIUS = 200 -- Bán kính quét bond
+local MAX_CYCLES = 5 -- Số chu kỳ quét
 
--- Các điểm quét
-local SCAN_POINTS = {
+-- Danh sách điểm đến
+local WAYPOINTS = {
     Vector3.new(56.22, 3.00, 29941.12),
     Vector3.new(-428.75, 26.07, -49040.91)
 }
-local SCAN_CYCLES = 5
 
 -- Trạng thái hệ thống
-local state = {
-    gui = nil,
-    textLabel = nil,
-    targetBond = nil,
-    isRunning = true,
-    isScanning = false,
-    teleporting = false,
-    currentCycle = 1,
-    bondsFound = 0,
-    preTeleportScriptLoaded = false
+local System = {
+    Active = true,
+    Scanning = false,
+    CurrentTarget = nil,
+    BondsCollected = 0,
+    CurrentCycle = 1,
+    GUI = nil
 }
 
--- Tạo GUI
-local function createGUI()
-    if state.gui then state.gui:Destroy() end
+-- TẠO GIAO DIỆN NÂNG CAO
+local function CreateEnhancedGUI()
+    if System.GUI then System.GUI:Destroy() end
 
-    local screenGui = Instance.new("ScreenGui")
-    screenGui.Name = "BondScannerUltra"
-    screenGui.Parent = player:WaitForChild("PlayerGui")
-    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    local ui = Instance.new("ScreenGui")
+    ui.Name = "AdvancedBondFarm"
+    ui.Parent = player:WaitForChild("PlayerGui")
 
-    local frame = Instance.new("Frame")
-    frame.Size = UDim2.new(0.35, 0, 0.2, 0)
-    frame.Position = UDim2.new(0.02, 0, 0.75, 0)
-    frame.BackgroundColor3 = Color3.fromRGB(20, 20, 30)
-    frame.BackgroundTransparency = 0.2
-    frame.BorderSizePixel = 0
-    
-    local textLabel = Instance.new("TextLabel")
-    textLabel.Size = UDim2.new(0.96, 0, 0.94, 0)
-    textLabel.Position = UDim2.new(0.02, 0, 0.02, 0)
-    textLabel.BackgroundTransparency = 1
-    textLabel.TextColor3 = Color3.new(1, 1, 1)
-    textLabel.TextXAlignment = Enum.TextXAlignment.Left
-    textLabel.TextYAlignment = Enum.TextYAlignment.Top
-    textLabel.Font = Enum.Font.Code
-    textLabel.TextSize = 15
-    textLabel.TextStrokeTransparency = 0.7
-    textLabel.TextWrapped = true
-    
-    textLabel.Parent = frame
-    frame.Parent = screenGui
-    
-    state.gui = screenGui
-    state.textLabel = textLabel
+    local mainFrame = Instance.new("Frame")
+    mainFrame.Size = UDim2.new(0.3, 0, 0.25, 0)
+    mainFrame.Position = UDim2.new(0.02, 0, 0.7, 0)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
+    mainFrame.BackgroundTransparency = 0.15
+    mainFrame.BorderSizePixel = 0
+
+    -- Thêm các thành phần UI
+    local title = Instance.new("TextLabel")
+    title.Text = "⚡ BOND FARMER PRO ⚡"
+    title.Font = Enum.Font.GothamBold
+    title.TextSize = 18
+    title.TextColor3 = Color3.new(1, 1, 1)
+    title.Size = UDim2.new(1, 0, 0.15, 0)
+    title.BackgroundTransparency = 1
+
+    -- [Thêm các thành phần UI khác...]
+
+    System.GUI = ui
 end
 
--- Cập nhật GUI
-local function updateGUI()
-    if not state.textLabel then return end
+-- HỆ THỐNG DI CHUYỂN THÔNG MINH
+local function SmartMovement(target)
+    humanoid.WalkSpeed = MOVEMENT_SPEED
     
-    local statusText = ""
-    if state.teleporting then
-        statusText = "🚀 ĐANG TELEPORT"
-    elseif state.isScanning then
-        statusText = "🔍 ĐANG QUÉT"
-    else
-        statusText = "🚶 ĐANG DI CHUYỂN"
+    -- Tính toán hướng di chuyển
+    local function UpdateDirection()
+        local dir = (target - humanoidRootPart.Position).Unit
+        humanoidRootPart.CFrame = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + dir)
+        return dir
     end
-    
-    local bondInfo = ""
-    if state.targetBond then
-        bondInfo = string.format("🎯 Bond: %s\n📍 Vị trí: %.1f, %.1f, %.1f", 
-            state.targetBond.name, 
-            state.targetBond.position.X, 
-            state.targetBond.position.Y, 
-            state.targetBond.position.Z)
-    else
-        bondInfo = "❌ Chưa tìm thấy bond"
-    end
-    
-    local scriptStatus = state.preTeleportScriptLoaded and "✅ Đã tải script" or "❌ Chưa tải script"
-    
-    state.textLabel.Text = string.format("HỆ THỐNG QUÉT BOND ULTRA\n\n%s\n%s\n\n%s\nChu kỳ: %d/%d\nTổng bond: %d", 
-        statusText, bondInfo, scriptStatus, state.currentCycle, SCAN_CYCLES, state.bondsFound)
-end
 
--- Tải script trước khi teleport
-local function loadPreTeleportScript()
-    if state.preTeleportScriptLoaded then return end
+    -- Di chuyển với kiểm tra liên tục
+    local direction = UpdateDirection()
+    humanoid:MoveTo(target)
     
-    state.textLabel.Text = "⏳ Đang tải script trước khi teleport..."
-    
-    local success, err = pcall(function()
-        local script = loadstring(game:HttpGet(PRE_TELEPORT_SCRIPT_URL))()
-        if script then
-            state.preTeleportScriptLoaded = true
-            state.textLabel.Text = "✅ Đã tải script thành công, đợi 5 giây..."
-            wait(PRE_TELEPORT_DELAY)
+    while System.Active do
+        local distance = (humanoidRootPart.Position - target).Magnitude
+        direction = UpdateDirection()
+        
+        -- Kiểm tra đến đích
+        if distance < ARRIVAL_THRESHOLD then
+            humanoid:MoveTo(humanoidRootPart.Position)
+            break
         end
-    end)
-    
-    if not success then
-        warn("Lỗi khi tải script: "..tostring(err))
-        state.textLabel.Text = "❌ Lỗi khi tải script, tiếp tục bình thường..."
-        wait(2)
-    end
-    
-    updateGUI()
-end
-
--- Quét bond trong phạm vi
-local function scanForBonds()
-    if not character or not humanoidRootPart then return nil end
-    
-    local bonds = {}
-    local characterPos = humanoidRootPart.Position
-    
-    local function scanRecursive(parent)
-        for _, item in ipairs(parent:GetChildren()) do
-            if item:IsA("BasePart") and string.find(string.lower(item.Name), "bond") then
-                local distance = (item.Position - characterPos).Magnitude
-                if distance <= SCAN_RADIUS then
-                    table.insert(bonds, {
-                        instance = item,
-                        position = item.Position,
-                        name = item.Name,
-                        distance = distance
-                    })
+        
+        -- Quét bond trong khi di chuyển
+        if not System.Scanning then
+            coroutine.wrap(function()
+                System.Scanning = true
+                local bond = FindNearestBond()
+                if bond then
+                    System.CurrentTarget = bond
+                    CollectBond(bond)
                 end
-            end
-            scanRecursive(item)
+                System.Scanning = false
+            end)()
         end
-    end
-    
-    scanRecursive(workspace)
-    
-    table.sort(bonds, function(a, b)
-        return a.distance < b.distance
-    end)
-    
-    return bonds[1]
-end
-
--- Di chuyển đến vị trí
-local function walkToPosition(position)
-    if state.teleporting then return end
-    
-    humanoid.WalkSpeed = WALK_SPEED
-    humanoid:MoveTo(position)
-    
-    -- Chờ đến khi gần đến đích
-    while (humanoidRootPart.Position - position).Magnitude > 5 and state.isRunning do
+        
         RunService.Heartbeat:Wait()
     end
 end
 
--- Teleport nhanh giữa các điểm
-local function quickTeleport(startPos, endPos)
-    -- Tải script trước khi teleport
-    loadPreTeleportScript()
+-- TÌM BOND GẦN NHẤT
+local function FindNearestBond()
+    local nearest = nil
+    local minDistance = SCAN_RADIUS
     
-    state.teleporting = true
-    updateGUI()
-    
-    humanoidRootPart.Anchored = true
-    local tweenInfo = TweenInfo.new(
-        TELEPORT_DURATION,
-        Enum.EasingStyle.Linear,
-        Enum.EasingDirection.Out,
-        0,
-        false,
-        0
-    )
-    
-    local tween = TweenService:Create(humanoidRootPart, tweenInfo, {Position = endPos})
-    tween:Play()
-    tween.Completed:Wait()
-    
-    humanoidRootPart.Anchored = false
-    state.teleporting = false
-end
-
--- Thu thập bond
-local function collectBond(bond)
-    if not bond or not bond.instance or not bond.instance.Parent then return end
-    
-    state.targetBond = bond
-    updateGUI()
-    
-    -- Di chuyển đến bond
-    walkToPosition(bond.position)
-    
-    -- Đánh dấu đã thu thập
-    state.bondsFound = state.bondsFound + 1
-    state.targetBond = nil
-end
-
--- Chu trình quét chính
-local function scanCycle()
-    for i = 1, SCAN_CYCLES do
-        state.currentCycle = i
-        updateGUI()
-        
-        -- Di chuyển và quét từng điểm
-        for _, point in ipairs(SCAN_POINTS) do
-            -- Đi bộ đến điểm quét
-            state.isScanning = false
-            walkToPosition(point)
-            
-            -- Quét tại điểm
-            state.isScanning = true
-            local bond = scanForBonds()
-            if bond then
-                collectBond(bond)
+    for _, obj in ipairs(workspace:GetDescendants()) do
+        if obj:IsA("BasePart") and string.find(obj.Name:lower(), "bond") then
+            local dist = (obj.Position - humanoidRootPart.Position).Magnitude
+            if dist < minDistance then
+                nearest = {
+                    Part = obj,
+                    Position = obj.Position,
+                    Distance = dist
+                }
+                minDistance = dist
             end
-            
-            updateGUI()
-        end
-        
-        -- Teleport nhanh giữa các điểm để quét lại
-        if i < SCAN_CYCLES then
-            quickTeleport(SCAN_POINTS[#SCAN_POINTS], SCAN_POINTS[1])
         end
     end
+    
+    return nearest
 end
 
--- Hệ thống chính
-local function startSystem()
-    createGUI()
-    
-    player.CharacterAdded:Connect(function(newChar)
-        character = newChar
-        humanoid = newChar:WaitForChild("Humanoid")
-        humanoidRootPart = newChar:WaitForChild("HumanoidRootPart")
-        updateGUI()
-    end)
-    
-    coroutine.wrap(scanCycle)()
+-- THU THẬP BOND
+local function CollectBond(bondData)
+    System.CurrentTarget = bondData
+    SmartMovement(bondData.Position)
+    System.BondsCollected += 1
+    System.CurrentTarget = nil
 end
 
--- Khởi động hệ thống
-startSystem()
+-- CHU TRÌNH CHÍNH
+local function MainLoop()
+    CreateEnhancedGUI()
+    
+    while System.Active and System.CurrentCycle <= MAX_CYCLES do
+        for _, waypoint in ipairs(WAYPOINTS) do
+            SmartMovement(waypoint)
+            
+            -- Quét kỹ tại điểm đến
+            local bond = FindNearestBond()
+            if bond then
+                CollectBond(bond)
+            end
+            
+            -- Cập nhật GUI
+            UpdateGUI()
+        end
+        
+        System.CurrentCycle += 1
+    end
+    
+    print("Hoàn thành farm bond! Tổng cộng:", System.BondsCollected)
+end
+
+-- BẮT ĐẦU HỆ THỐNG
+coroutine.wrap(MainLoop)()
