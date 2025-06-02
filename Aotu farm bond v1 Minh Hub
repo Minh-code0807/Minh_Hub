@@ -1,5 +1,7 @@
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Minh-code0807/HUB/refs/heads/main/Help%20aotu%20farm%20bond"))()
-wait (5)
+loadstring(game:HttpGet("https://raw.githubusercontent.com/Minh-code0807/HUB/main/Help%20aotu%20farm%20bond.lua", true))()
+
+wait(5)
+
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
@@ -9,14 +11,12 @@ local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
--- CẤU HÌNH NÂNG CAO
-local MOVEMENT_SPEED = 1000 -- Tốc độ di chuyển (studs/giây)
-local SCAN_INTERVAL = 0.2 -- Thời gian giữa các lần quét
-local ARRIVAL_THRESHOLD = 5 -- Khoảng cách đạt đích
-local SCAN_RADIUS = 200 -- Bán kính quét bond
-local MAX_CYCLES = 5 -- Số chu kỳ quét
+local MOVEMENT_SPEED = 1000
+local SCAN_INTERVAL = 0.2
+local ARRIVAL_THRESHOLD = 5
+local SCAN_RADIUS = 200
+local MAX_CYCLES = 5
 
--- Danh sách điểm đến
 local WAYPOINTS = {
     Vector3.new(56.22, 3.00, 29941.12),
     Vector3.new(-428.75, 26.07, -49040.91)
@@ -32,9 +32,11 @@ local System = {
     GUI = nil
 }
 
--- TẠO GIAO DIỆN NÂNG CAO
 local function CreateEnhancedGUI()
-    if System.GUI then System.GUI:Destroy() end
+    if System.GUI then 
+        System.GUI:Destroy() 
+        System.GUI = nil
+    end
 
     local ui = Instance.new("ScreenGui")
     ui.Name = "AdvancedBondFarm"
@@ -46,8 +48,9 @@ local function CreateEnhancedGUI()
     mainFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
     mainFrame.BackgroundTransparency = 0.15
     mainFrame.BorderSizePixel = 0
+    mainFrame.Parent = ui
 
-    -- Thêm các thành phần UI
+    -- Title
     local title = Instance.new("TextLabel")
     title.Text = "⚡ BOND FARMER PRO ⚡"
     title.Font = Enum.Font.GothamBold
@@ -55,38 +58,56 @@ local function CreateEnhancedGUI()
     title.TextColor3 = Color3.new(1, 1, 1)
     title.Size = UDim2.new(1, 0, 0.15, 0)
     title.BackgroundTransparency = 1
+    title.Parent = mainFrame
 
-    -- [Thêm các thành phần UI khác...]
+    -- Stats Label
+    local statsLabel = Instance.new("TextLabel")
+    statsLabel.Name = "StatsLabel"
+    statsLabel.Text = "Loading..."
+    statsLabel.Size = UDim2.new(1, 0, 0.3, 0)
+    statsLabel.Position = UDim2.new(0, 0, 0.2, 0)
+    statsLabel.BackgroundTransparency = 1
+    statsLabel.TextColor3 = Color3.new(1, 1, 1)
+    statsLabel.Parent = mainFrame
 
     System.GUI = ui
 end
 
--- HỆ THỐNG DI CHUYỂN THÔNG MINH
+local function UpdateGUI()
+    if System.GUI and System.GUI:FindFirstChild("StatsLabel") then
+        System.GUI.StatsLabel.Text = string.format(
+            "Bonds: %d | Cycle: %d/%d\nTarget: %s",
+            System.BondsCollected,
+            System.CurrentCycle,
+            MAX_CYCLES,
+            System.CurrentTarget and tostring(System.CurrentTarget.Position) or "None"
+        )
+    end
+end
+
 local function SmartMovement(target)
+    if not humanoidRootPart or not humanoid then return end
+    
     humanoid.WalkSpeed = MOVEMENT_SPEED
     
-    -- Tính toán hướng di chuyển
     local function UpdateDirection()
         local dir = (target - humanoidRootPart.Position).Unit
         humanoidRootPart.CFrame = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + dir)
         return dir
     end
 
-    -- Di chuyển với kiểm tra liên tục
     local direction = UpdateDirection()
     humanoid:MoveTo(target)
     
-    while System.Active do
+    while System.Active and humanoidRootPart and humanoid do
         local distance = (humanoidRootPart.Position - target).Magnitude
         direction = UpdateDirection()
         
-        -- Kiểm tra đến đích
         if distance < ARRIVAL_THRESHOLD then
             humanoid:MoveTo(humanoidRootPart.Position)
             break
         end
         
-        -- Quét bond trong khi di chuyển
         if not System.Scanning then
             coroutine.wrap(function()
                 System.Scanning = true
@@ -103,13 +124,12 @@ local function SmartMovement(target)
     end
 end
 
--- TÌM BOND GẦN NHẤT
 local function FindNearestBond()
     local nearest = nil
     local minDistance = SCAN_RADIUS
     
     for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and string.find(obj.Name:lower(), "bond") then
+        if obj:IsA("BasePart") and (obj.Name:lower():find("bond") or obj.Parent.Name:lower():find("bond")) then
             local dist = (obj.Position - humanoidRootPart.Position).Magnitude
             if dist < minDistance then
                 nearest = {
@@ -125,20 +145,35 @@ local function FindNearestBond()
     return nearest
 end
 
--- THU THẬP BOND
 local function CollectBond(bondData)
+    if not bondData or not bondData.Part then return end
+    
     System.CurrentTarget = bondData
     SmartMovement(bondData.Position)
-    System.BondsCollected += 1
+    
+    if bondData.Part and bondData.Part.Parent then
+        bondData.Part:Destroy() -- Hoặc gọi remote event tương ứng
+        System.BondsCollected += 1
+        UpdateGUI()
+    end
+    
     System.CurrentTarget = nil
 end
 
--- CHU TRÌNH CHÍNH
+player.CharacterAdded:Connect(function(newChar)
+    character = newChar
+    humanoid = newChar:WaitForChild("Humanoid")
+    humanoidRootPart = newChar:WaitForChild("HumanoidRootPart")
+    CreateEnhancedGUI() -- Tạo lại GUI khi respawn
+end)
+
 local function MainLoop()
     CreateEnhancedGUI()
     
     while System.Active and System.CurrentCycle <= MAX_CYCLES do
         for _, waypoint in ipairs(WAYPOINTS) do
+            if not System.Active then break end
+            
             SmartMovement(waypoint)
             
             -- Quét kỹ tại điểm đến
@@ -147,8 +182,8 @@ local function MainLoop()
                 CollectBond(bond)
             end
             
-            -- Cập nhật GUI
             UpdateGUI()
+            wait(SCAN_INTERVAL)
         end
         
         System.CurrentCycle += 1
@@ -157,5 +192,4 @@ local function MainLoop()
     print("Hoàn thành farm bond! Tổng cộng:", System.BondsCollected)
 end
 
--- BẮT ĐẦU HỆ THỐNG
 coroutine.wrap(MainLoop)()
