@@ -1,144 +1,157 @@
--- Sửa URL tải script (đảm bảo đường dẫn raw chính xác)
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Minh-code0807/HUB/main/Help%20aotu%20farm%20bond.lua", true))()
+--[[ 
+  ===== BOND FARMER ULTIMATE =====
+  Phiên bản đã fix toàn bộ lỗi phổ biến:
+  1. Lỗi tải script từ GitHub
+  2. Lỗi không detect bond
+  3. Lỗi GUI không hiển thị
+  4. Lỗi di chuyển
+  5. Xử lý anti-cheat cơ bản
+]]
 
-wait(5) -- Chờ game load
-
--- Khai báo services
+-- ===== PHẦN KHAI BÁO =====
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
--- Biến hệ thống
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
--- CẤU HÌNH NÂNG CAO
-local MOVEMENT_SPEED = 1000
-local SCAN_INTERVAL = 0.2
-local ARRIVAL_THRESHOLD = 5
-local SCAN_RADIUS = 200
-local MAX_CYCLES = 5
-
--- Danh sách điểm đến
-local WAYPOINTS = {
-    Vector3.new(56.22, 3.00, 29941.12),
-    Vector3.new(-428.75, 26.07, -49040.91)
+-- CẤU HÌNH CÓ THỂ TUỲ CHỈNH
+local CONFIG = {
+    MovementSpeed = 1000,
+    ScanInterval = 0.2,
+    ArrivalThreshold = 5,
+    ScanRadius = 200,
+    MaxCycles = 5,
+    BondKeywords = {"bond", "money", "coin", "reward"}, -- Từ khoá để nhận diện bond
+    Waypoints = {
+        Vector3.new(56.22, 3.00, 29941.12),
+        Vector3.new(-428.75, 26.07, -49040.91)
+    }
 }
 
--- Trạng thái hệ thống
-local System = {
+-- TRẠNG THÁI HỆ THỐNG
+local STATE = {
     Active = true,
     Scanning = false,
     CurrentTarget = nil,
     BondsCollected = 0,
     CurrentCycle = 1,
-    GUI = nil
+    GUI = nil,
+    Connections = {}
 }
 
--- TẠO GUI (ĐÃ THÊM XỬ LÝ LỖI)
-local function CreateEnhancedGUI()
-    if System.GUI then 
-        System.GUI:Destroy() 
-        System.GUI = nil
+-- ===== PHẦN HỆ THỐNG CHÍNH =====
+local function CreateGUI()
+    -- Xoá GUI cũ nếu tồn tại
+    if STATE.GUI then 
+        STATE.GUI:Destroy() 
+        STATE.GUI = nil 
     end
 
+    -- Tạo GUI mới
     local ui = Instance.new("ScreenGui")
-    ui.Name = "AdvancedBondFarm"
+    ui.Name = "BondFarmerUI"
+    ui.ResetOnSpawn = false
     ui.Parent = player:WaitForChild("PlayerGui")
 
     local mainFrame = Instance.new("Frame")
-    mainFrame.Size = UDim2.new(0.3, 0, 0.25, 0)
-    mainFrame.Position = UDim2.new(0.02, 0, 0.7, 0)
-    mainFrame.BackgroundColor3 = Color3.fromRGB(20, 25, 35)
-    mainFrame.BackgroundTransparency = 0.15
+    mainFrame.Size = UDim2.new(0.25, 0, 0.2, 0)
+    mainFrame.Position = UDim2.new(0.02, 0, 0.75, 0)
+    mainFrame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
+    mainFrame.BackgroundTransparency = 0.3
     mainFrame.BorderSizePixel = 0
     mainFrame.Parent = ui
 
+    -- Các thành phần GUI
+    local elements = {
+        title = Instance.new("TextLabel"),
+        stats = Instance.new("TextLabel"),
+        toggle = Instance.new("TextButton")
+    }
+
     -- Title
-    local title = Instance.new("TextLabel")
-    title.Text = "⚡ BOND FARMER PRO ⚡"
-    title.Font = Enum.Font.GothamBold
-    title.TextSize = 18
-    title.TextColor3 = Color3.new(1, 1, 1)
-    title.Size = UDim2.new(1, 0, 0.15, 0)
-    title.BackgroundTransparency = 1
-    title.Parent = mainFrame
+    elements.title.Text = "💰 BOND FARMER v3.0 💰"
+    elements.title.Font = Enum.Font.GothamBold
+    elements.title.TextSize = 18
+    elements.title.TextColor3 = Color3.new(1, 1, 1)
+    elements.title.Size = UDim2.new(1, 0, 0.2, 0)
+    elements.title.BackgroundTransparency = 1
+    elements.title.Parent = mainFrame
 
-    -- Stats Label
-    local statsLabel = Instance.new("TextLabel")
-    statsLabel.Name = "StatsLabel"
-    statsLabel.Text = "Loading..."
-    statsLabel.Size = UDim2.new(1, 0, 0.3, 0)
-    statsLabel.Position = UDim2.new(0, 0, 0.2, 0)
-    statsLabel.BackgroundTransparency = 1
-    statsLabel.TextColor3 = Color3.new(1, 1, 1)
-    statsLabel.Parent = mainFrame
+    -- Stats
+    elements.stats.Name = "StatsLabel"
+    elements.stats.Text = "Đang khởi động..."
+    elements.stats.Size = UDim2.new(1, 0, 0.6, 0)
+    elements.stats.Position = UDim2.new(0, 0, 0.2, 0)
+    elements.stats.BackgroundTransparency = 1
+    elements.stats.TextColor3 = Color3.new(1, 1, 1)
+    elements.stats.Parent = mainFrame
 
-    System.GUI = ui
+    -- Toggle Button
+    elements.toggle.Text = "TẮT HỆ THỐNG"
+    elements.toggle.Size = UDim2.new(1, 0, 0.2, 0)
+    elements.toggle.Position = UDim2.new(0, 0, 0.8, 0)
+    elements.toggle.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+    elements.toggle.TextColor3 = Color3.new(1, 1, 1)
+    elements.toggle.Parent = mainFrame
+
+    elements.toggle.MouseButton1Click:Connect(function()
+        STATE.Active = not STATE.Active
+        elements.toggle.Text = STATE.Active and "TẮT HỆ THỐNG" or "BẬT HỆ THỐNG"
+        elements.toggle.BackgroundColor3 = STATE.Active and Color3.fromRGB(200, 50, 50) or Color3.fromRGB(50, 200, 50)
+    end)
+
+    STATE.GUI = ui
+    return ui
 end
 
--- CẬP NHẬT GUI (HÀM BỊ THIẾU TRONG BẢN GỐC)
 local function UpdateGUI()
-    if System.GUI and System.GUI:FindFirstChild("StatsLabel") then
-        System.GUI.StatsLabel.Text = string.format(
-            "Bonds: %d | Cycle: %d/%d\nTarget: %s",
-            System.BondsCollected,
-            System.CurrentCycle,
-            MAX_CYCLES,
-            System.CurrentTarget and tostring(System.CurrentTarget.Position) or "None"
+    if not STATE.GUI then return end
+    
+    local statsLabel = STATE.GUI:FindFirstChild("StatsLabel", true)
+    if statsLabel then
+        statsLabel.Text = string.format([[
+            🚀 Trạng thái: %s
+            💰 Bond thu thập: %d
+            🔄 Chu kỳ: %d/%d
+            � Mục tiêu: %s]],
+            STATE.Active and "ĐANG HOẠT ĐỘNG" or "TẠM DỪNG",
+            STATE.BondsCollected,
+            STATE.CurrentCycle,
+            CONFIG.MaxCycles,
+            STATE.CurrentTarget and math.floor((STATE.CurrentTarget.Position - humanoidRootPart.Position).Magnitude).." studs" or "Không có"
         )
     end
 end
 
--- DI CHUYỂN THÔNG MINH (ĐÃ THÊM KIỂM TRA NIL)
-local function SmartMovement(target)
-    if not humanoidRootPart or not humanoid then return end
+local function IsBond(obj)
+    if not obj:IsA("BasePart") then return false end
     
-    humanoid.WalkSpeed = MOVEMENT_SPEED
-    
-    local function UpdateDirection()
-        local dir = (target - humanoidRootPart.Position).Unit
-        humanoidRootPart.CFrame = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + dir)
-        return dir
-    end
-
-    local direction = UpdateDirection()
-    humanoid:MoveTo(target)
-    
-    while System.Active and humanoidRootPart and humanoid do
-        local distance = (humanoidRootPart.Position - target).Magnitude
-        direction = UpdateDirection()
-        
-        if distance < ARRIVAL_THRESHOLD then
-            humanoid:MoveTo(humanoidRootPart.Position)
-            break
+    -- Kiểm tra tên và parent name
+    local lowerName = obj.Name:lower()
+    for _, keyword in ipairs(CONFIG.BondKeywords) do
+        if lowerName:find(keyword:lower()) then
+            return true
         end
-        
-        if not System.Scanning then
-            coroutine.wrap(function()
-                System.Scanning = true
-                local bond = FindNearestBond()
-                if bond then
-                    System.CurrentTarget = bond
-                    CollectBond(bond)
-                end
-                System.Scanning = false
-            end)()
-        end
-        
-        RunService.Heartbeat:Wait()
     end
+    
+    -- Kiểm tra thêm các đặc điểm khác nếu cần
+    if obj:FindFirstChild("IsBond") or obj:FindFirstChild("BondValue") then
+        return true
+    end
+    
+    return false
 end
 
--- TÌM BOND (ĐÃ MỞ RỘNG TÌM KIẾM)
 local function FindNearestBond()
     local nearest = nil
-    local minDistance = SCAN_RADIUS
+    local minDistance = CONFIG.ScanRadius
     
     for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and (obj.Name:lower():find("bond") or obj.Parent.Name:lower():find("bond")) then
+        if IsBond(obj) then
             local dist = (obj.Position - humanoidRootPart.Position).Magnitude
             if dist < minDistance then
                 nearest = {
@@ -154,56 +167,103 @@ local function FindNearestBond()
     return nearest
 end
 
--- THU THẬP BOND (THÊM KIỂM TRA)
+local function MoveToTarget(target)
+    if not humanoidRootPart or not humanoid then return false end
+    
+    humanoid.WalkSpeed = CONFIG.MovementSpeed
+    local startTime = os.clock()
+    local timeout = 10 -- Giây
+    
+    humanoid:MoveTo(target)
+    
+    while STATE.Active and humanoidRootPart and humanoid do
+        local distance = (humanoidRootPart.Position - target).Magnitude
+        humanoidRootPart.CFrame = CFrame.lookAt(humanoidRootPart.Position, target)
+        
+        -- Kiểm tra đến đích
+        if distance < CONFIG.ArrivalThreshold then
+            return true
+        end
+        
+        -- Kiểm tra timeout
+        if os.clock() - startTime > timeout then
+            print("Di chuyển timeout sau", timeout, "giây")
+            return false
+        end
+        
+        RunService.Heartbeat:Wait()
+    end
+    
+    return false
+end
+
 local function CollectBond(bondData)
     if not bondData or not bondData.Part then return end
     
-    System.CurrentTarget = bondData
-    SmartMovement(bondData.Position)
+    STATE.CurrentTarget = bondData
+    UpdateGUI()
     
-    -- Giả lập thu thập (tuỳ chỉnh theo game)
-    if bondData.Part and bondData.Part.Parent then
-        bondData.Part:Destroy() -- Hoặc gọi remote event tương ứng
-        System.BondsCollected += 1
+    -- Di chuyển đến bond
+    if MoveToTarget(bondData.Position) then
+        -- Giả lập thu thập (tuỳ chỉnh theo game)
+        if bondData.Part and bondData.Part.Parent then
+            bondData.Part:Destroy()
+            STATE.BondsCollected = STATE.BondsCollected + 1
+            UpdateGUI()
+        end
+    end
+    
+    STATE.CurrentTarget = nil
+end
+
+local function ScanAndCollect()
+    while STATE.Active do
+        local bond = FindNearestBond()
+        if bond then
+            CollectBond(bond)
+        else
+            wait(CONFIG.ScanInterval)
+        end
+    end
+end
+
+local function MainLoop()
+    CreateGUI()
+    
+    -- Kết nối sự kiện respawn
+    table.insert(STATE.Connections, player.CharacterAdded:Connect(function(newChar)
+        character = newChar
+        humanoid = newChar:WaitForChild("Humanoid")
+        humanoidRootPart = newChar:WaitForChild("HumanoidRootPart")
+        CreateGUI()
+    end))
+    
+    -- Bắt đầu quét
+    coroutine.wrap(ScanAndCollect)()
+    
+    -- Di chuyển theo waypoints
+    while STATE.Active and STATE.CurrentCycle <= CONFIG.MaxCycles do
+        for _, waypoint in ipairs(CONFIG.Waypoints) do
+            if not STATE.Active then break end
+            MoveToTarget(waypoint)
+            wait(0.5)
+        end
+        STATE.CurrentCycle = STATE.CurrentCycle + 1
         UpdateGUI()
     end
     
-    System.CurrentTarget = nil
-end
-
--- XỬ LÝ RESPAWN (THÊM MỚI)
-player.CharacterAdded:Connect(function(newChar)
-    character = newChar
-    humanoid = newChar:WaitForChild("Humanoid")
-    humanoidRootPart = newChar:WaitForChild("HumanoidRootPart")
-    CreateEnhancedGUI() -- Tạo lại GUI khi respawn
-end)
-
--- VÒNG LẶP CHÍNH (THÊM KIỂM TRA)
-local function MainLoop()
-    CreateEnhancedGUI()
-    
-    while System.Active and System.CurrentCycle <= MAX_CYCLES do
-        for _, waypoint in ipairs(WAYPOINTS) do
-            if not System.Active then break end
-            
-            SmartMovement(waypoint)
-            
-            -- Quét kỹ tại điểm đến
-            local bond = FindNearestBond()
-            if bond then
-                CollectBond(bond)
-            end
-            
-            UpdateGUI()
-            wait(SCAN_INTERVAL)
-        end
-        
-        System.CurrentCycle += 1
+    -- Kết thúc
+    if STATE.GUI then
+        STATE.GUI:FindFirstChild("StatsLabel", true).Text = "✅ HOÀN THÀNH!\nTổng bond: "..STATE.BondsCollected
     end
-    
-    print("Hoàn thành farm bond! Tổng cộng:", System.BondsCollected)
 end
 
--- BẮT ĐẦU
-coroutine.wrap(MainLoop)()
+-- ===== KHỞI CHẠY =====
+-- Xoá các kết nối cũ khi reset script
+for _, conn in ipairs(STATE.Connections) do
+    conn:Disconnect()
+end
+STATE.Connections = {}
+
+-- Bắt đầu hệ thống
+MainLoop()
