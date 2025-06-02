@@ -1,63 +1,61 @@
--- Script Farm Bond Liên Tục
+-- Script Auto Farm Bond Tự Động Di Chuyển Liên Tục
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local TweenService = game:GetService("TweenService")
 
--- Cấu hình
-local TARGET_POSITION = Vector3.new(-428.75, 26.07, -49040.91)
+-- Cấu hình hệ thống
+local WAYPOINTS = {
+    Vector3.new(-428.75, 26.07, -49040.91),  -- Điểm chính cần đến
+    Vector3.new(100, 25, -49000),             -- Điểm phụ 1
+    Vector3.new(-300, 30, -49100)             -- Điểm phụ 2
+}
 local MOVEMENT_SPEED = 1000
 local SCAN_INTERVAL = 0.1
 local ARRIVAL_THRESHOLD = 5
-local STUCK_TIMEOUT = 5 -- Giây
-local FALLBACK_Y = -100 -- Giá trị Y khi bị kẹt
+local STUCK_TIMEOUT = 5
+local FALLBACK_Y = -100
+local BOND_KEYWORDS = {"bond", "money", "coin", "reward"}
 
--- Khởi tạo
+-- Khởi tạo nhân vật
 local player = Players.LocalPlayer
 local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local humanoidRootPart = character:WaitForChild("HumanoidRootPart")
 
--- Hàm di chuyển siêu tốc cải tiến
-local function TurboMoveTo(target)
+-- Hàm di chuyển thông minh với chống kẹt
+local function SmartMoveTo(target)
     humanoid.WalkSpeed = MOVEMENT_SPEED
     humanoid.AutoRotate = false
     
     local startTime = os.clock()
     local lastPosition = humanoidRootPart.Position
     
-    -- Tính hướng di chuyển
-    local direction = (target - humanoidRootPart.Position).Unit
-    humanoidRootPart.CFrame = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + direction)
-    
-    -- Bắt đầu di chuyển
-    humanoid:MoveTo(target)
-    
-    -- Theo dõi di chuyển
     while humanoidRootPart and humanoid do
-        local currentTime = os.clock()
-        local distance = (humanoidRootPart.Position - target).Magnitude
-        local movedDistance = (humanoidRootPart.Position - lastPosition).Magnitude
+        -- Tính toán hướng di chuyển
+        local direction = (target - humanoidRootPart.Position).Unit
+        humanoidRootPart.CFrame = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + direction)
         
-        -- Kiểm tra đến đích
+        -- Di chuyển
+        humanoid:MoveTo(target)
+        
+        -- Kiểm tra điều kiện dừng
+        local distance = (humanoidRootPart.Position - target).Magnitude
         if distance < ARRIVAL_THRESHOLD then
             break
         end
         
         -- Kiểm tra bị kẹt
-        if currentTime - startTime > STUCK_TIMEOUT and movedDistance < 10 then
-            print("Phát hiện bị kẹt, kích hoạt chế độ khẩn cấp!")
+        if os.clock() - startTime > STUCK_TIMEOUT and 
+           (humanoidRootPart.Position - lastPosition).Magnitude < 10 then
+            print("Kích hoạt chế độ thoát kẹt!")
             humanoidRootPart.CFrame = CFrame.new(
                 humanoidRootPart.Position.X,
                 FALLBACK_Y,
                 humanoidRootPart.Position.Z
             )
-            task.wait(0.5)
-            startTime = os.clock() -- Reset timer
+            task.wait(1)
+            startTime = os.clock()
         end
-        
-        -- Cập nhật hướng di chuyển
-        direction = (target - humanoidRootPart.Position).Unit
-        humanoidRootPart.CFrame = CFrame.lookAt(humanoidRootPart.Position, humanoidRootPart.Position + direction)
         
         lastPosition = humanoidRootPart.Position
         RunService.Heartbeat:Wait()
@@ -67,57 +65,82 @@ local function TurboMoveTo(target)
 end
 
 -- Hàm quét bond nâng cao
-local function EnhancedScan()
-    local foundBond = false
+local function AdvancedBondScan()
+    local closestBond = nil
+    local minDistance = math.huge
     
-    -- Quét tất cả đối tượng trong phạm vi
     for _, obj in ipairs(workspace:GetDescendants()) do
-        if obj:IsA("BasePart") and (obj.Name:lower():find("bond") or obj.Parent.Name:lower():find("bond")) then
-            -- Canh chỉnh camera
-            local camera = game.Workspace.CurrentCamera
-            camera.CFrame = CFrame.lookAt(camera.CFrame.Position, obj.Position)
-            
-            -- Chạy script thu thập
-            local success, err = pcall(function()
-                loadstring(game:HttpGet("https://raw.githubusercontent.com/Minh-code0807/HUB/main/Nh%E1%BA%B7t%20bond.lua"))()
-            end)
-            
-            if success then
-                print("Đã thu thập bond thành công!")
-                foundBond = true
-            else
-                warn("Lỗi khi chạy script thu thập:", err)
+        if obj:IsA("BasePart") then
+            -- Kiểm tra tên bond
+            local lowerName = obj.Name:lower()
+            local isBond = false
+            for _, kw in ipairs(BOND_KEYWORDS) do
+                if lowerName:find(kw:lower()) then
+                    isBond = true
+                    break
+                end
             end
             
-            break -- Chỉ xử lý 1 bond tại 1 thời điểm
+            -- Nếu là bond thì xử lý
+            if isBond then
+                local dist = (obj.Position - humanoidRootPart.Position).Magnitude
+                if dist < minDistance then
+                    closestBond = obj
+                    minDistance = dist
+                end
+            end
         end
     end
     
-    return foundBond
+    return closestBond
 end
 
--- Chu trình chính liên tục
-local function ContinuousFarm()
+-- Hàm thu thập bond
+local function CollectBond(bond)
+    -- Canh camera
+    local camera = workspace.CurrentCamera
+    camera.CFrame = CFrame.lookAt(camera.CFrame.Position, bond.Position)
+    
+    -- Chạy script thu thập
+    local success, err = pcall(function()
+        loadstring(game:HttpGet("https://raw.githubusercontent.com/Minh-code0807/HUB/main/Nh%E1%BA%B7t%20bond.lua"))()
+    end)
+    
+    if success then
+        print("Đã thu thập bond thành công!")
+        return true
+    else
+        warn("Lỗi khi thu thập bond:", err)
+        return false
+    end
+end
+
+-- Vòng lặp chính
+local function MainLoop()
+    local currentWaypoint = 1
+    
     while true do
-        -- Di chuyển siêu tốc đến mục tiêu
-        TurboMoveTo(TARGET_POSITION)
+        -- Di chuyển đến waypoint hiện tại
+        local target = WAYPOINTS[currentWaypoint]
+        print("Đang di chuyển đến waypoint", currentWaypoint, ":", target)
+        
+        SmartMoveTo(target)
         
         -- Quét bond trong khi di chuyển
-        local scanStart = os.clock()
-        local foundBond = false
-        
-        while os.clock() - scanStart < STUCK_TIMEOUT do
-            foundBond = EnhancedScan()
-            if foundBond then
-                break
-            end
-            task.wait(SCAN_INTERVAL)
+        local bond = AdvancedBondScan()
+        if bond then
+            print("Phát hiện bond, đang thu thập...")
+            CollectBond(bond)
         end
         
-        -- Nếu không tìm thấy bond, tiếp tục di chuyển
-        if not foundBond then
-            print("Không tìm thấy bond, tiếp tục di chuyển...")
+        -- Chuyển sang waypoint tiếp theo
+        currentWaypoint = currentWaypoint + 1
+        if currentWaypoint > #WAYPOINTS then
+            currentWaypoint = 1  -- Quay lại waypoint đầu tiên
         end
+        
+        -- Thêm delay ngẫu nhiên để tránh bị phát hiện
+        task.wait(math.random(0.1, 0.5))
     end
 end
 
@@ -130,4 +153,4 @@ player.CharacterAdded:Connect(function(newChar)
 end)
 
 -- Bắt đầu hệ thống
-ContinuousFarm()
+MainLoop()
