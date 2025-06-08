@@ -1,173 +1,163 @@
-local player = game.Players.LocalPlayer
+local player = game:GetService("Players").LocalPlayer
+local tweenService = game:GetService("TweenService")
 
 -- Tạo GUI
 local gui = Instance.new("ScreenGui")
-gui.Name = "MinhHubDraggableGui"
+gui.Name = "MinhHub"
+gui.ResetOnSpawn = false
 gui.Parent = player:WaitForChild("PlayerGui")
 
--- Tạo frame chính
+-- Frame chính
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 420, 0, 220)
-frame.Position = UDim2.new(0.5, -210, 0.3, 0)
-frame.BackgroundColor3 = Color3.fromRGB(33, 35, 42)
+frame.Size = UDim2.new(0, 400, 0, 300)
+frame.Position = UDim2.new(0.5, -200, 0.5, -150)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 40)
 frame.BorderSizePixel = 0
 frame.Active = true
 frame.Draggable = true
 frame.Parent = gui
 
+-- Bo góc
+local corner = Instance.new("UICorner")
+corner.CornerRadius = UDim.new(0, 12)
+corner.Parent = frame
+
+-- Thanh tiêu đề
+local titleBar = Instance.new("Frame")
+titleBar.Size = UDim2.new(1, 0, 0, 40)
+titleBar.Position = UDim2.new(0, 0, 0, 0)
+titleBar.BackgroundColor3 = Color3.fromRGB(40, 40, 50)
+titleBar.BorderSizePixel = 0
+titleBar.Parent = frame
+
 -- Tiêu đề
 local title = Instance.new("TextLabel")
-title.Size = UDim2.new(1, 0, 0, 48)
+title.Size = UDim2.new(1, 0, 1, 0)
 title.Position = UDim2.new(0, 0, 0, 0)
 title.BackgroundTransparency = 1
 title.Font = Enum.Font.GothamBold
-title.Text = "by Minh Hub"
-title.TextSize = 34
+title.Text = "MINH HUB"
+title.TextSize = 18
 title.TextColor3 = Color3.fromRGB(255, 255, 255)
-title.Parent = frame
+title.Parent = titleBar
 
--- Bảng nút bấm
-local buttonTable = Instance.new("Frame")
-buttonTable.Size = UDim2.new(1, -48, 0, 100)
-buttonTable.Position = UDim2.new(0, 24, 0, 75)
-buttonTable.BackgroundTransparency = 1
-buttonTable.Parent = frame
+-- Nút đóng
+local closeBtn = Instance.new("TextButton")
+closeBtn.Size = UDim2.new(0, 30, 0, 30)
+closeBtn.Position = UDim2.new(1, -35, 0, 5)
+closeBtn.Text = "X"
+closeBtn.Font = Enum.Font.GothamBold
+closeBtn.TextSize = 18
+closeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+closeBtn.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+closeBtn.Parent = titleBar
 
--- Sắp xếp các nút
-local uiList = Instance.new("UIListLayout")
-uiList.FillDirection = Enum.FillDirection.Horizontal
-uiList.HorizontalAlignment = Enum.HorizontalAlignment.Center
-uiList.VerticalAlignment = Enum.VerticalAlignment.Center
-uiList.Padding = UDim.new(0, 10)
-uiList.Parent = buttonTable
+local btnCorner = Instance.new("UICorner")
+btnCorner.CornerRadius = UDim.new(0, 8)
+btnCorner.Parent = closeBtn
 
--- Timer
-local timerLabel = Instance.new("TextLabel")
-timerLabel.Size = UDim2.new(0, 150, 0, 40)
-timerLabel.Position = UDim2.new(0, 14, 1, -50)
-timerLabel.BackgroundTransparency = 0.3
-timerLabel.BackgroundColor3 = Color3.fromRGB(50, 50, 60)
-timerLabel.BorderSizePixel = 0
-timerLabel.Font = Enum.Font.GothamBold
-timerLabel.TextSize = 28
-timerLabel.TextColor3 = Color3.fromRGB(255,255,255)
-timerLabel.TextXAlignment = Enum.TextXAlignment.Left
-timerLabel.Text = "10:00"
-timerLabel.Parent = frame
-
--- Chạy timer
-local seconds = 10 * 60
-task.spawn(function()
-    while seconds >= 0 and frame.Parent do
-        local mins = math.floor(seconds / 60)
-        local secs = seconds % 60
-        timerLabel.Text = string.format("%02d:%02d", mins, secs)
-        task.wait(1)
-        seconds = seconds - 1
-    end
-    if frame.Parent then
-        timerLabel.Text = "00:00"
-    end
+closeBtn.MouseButton1Click:Connect(function()
+    gui:Destroy()
 end)
 
--- Nút thu nhỏ/phóng to
-local minimizeBtn = Instance.new("TextButton")
-minimizeBtn.Size = UDim2.new(0, 40, 0, 40)
-minimizeBtn.Position = UDim2.new(1, -50, 0, 8)
-minimizeBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
-minimizeBtn.Text = "-"
-minimizeBtn.TextColor3 = Color3.fromRGB(255,255,255)
-minimizeBtn.Font = Enum.Font.GothamBold
-minimizeBtn.TextSize = 30
-minimizeBtn.BorderSizePixel = 0
-minimizeBtn.Parent = frame
-
-local smallBtn = Instance.new("TextButton")
-smallBtn.Size = UDim2.new(0, 40, 0, 40)
-smallBtn.Position = UDim2.new(0.5, -20, 0, 20)
-smallBtn.AnchorPoint = Vector2.new(0.5, 0)
-smallBtn.BackgroundColor3 = Color3.fromRGB(60, 60, 90)
-smallBtn.Text = "+"
-smallBtn.TextColor3 = Color3.fromRGB(255,255,255)
-smallBtn.Font = Enum.Font.GothamBold
-smallBtn.TextSize = 30
-smallBtn.BorderSizePixel = 0
-smallBtn.Visible = false
-smallBtn.Active = true
-smallBtn.Draggable = true
-smallBtn.Parent = gui
-
-minimizeBtn.MouseButton1Click:Connect(function()
-    frame.Visible = false
-    smallBtn.Visible = true
-end)
-
-smallBtn.MouseButton1Click:Connect(function()
-    frame.Visible = true
-    smallBtn.Visible = false
-end)
-
--- Hàm tạo nút
-local function createButton(name, callback)
+-- Hàm tạo nút bấm màu bạc
+local function createSilverButton(name, position, callback)
     local btn = Instance.new("TextButton")
-    btn.Size = UDim2.new(0, 80, 0, 50)
-    btn.BackgroundColor3 = Color3.fromRGB(114, 137, 218)
+    btn.Size = UDim2.new(0.8, 0, 0, 45)
+    btn.Position = position
+    btn.AnchorPoint = Vector2.new(0.5, 0)
+    btn.BackgroundColor3 = Color3.fromRGB(180, 180, 180)
     btn.Text = name
-    btn.TextColor3 = Color3.fromRGB(255,255,255)
+    btn.TextColor3 = Color3.fromRGB(40, 40, 40)
     btn.Font = Enum.Font.GothamBold
-    btn.TextSize = 20
+    btn.TextSize = 16
     btn.BorderSizePixel = 0
-    btn.AutoButtonColor = true
-    btn.Parent = buttonTable
+    btn.AutoButtonColor = false
+    btn.Parent = frame
     
-    btn.MouseButton1Click:Connect(function()
-        local success, err = pcall(callback)
-        if not success then
-            warn("Lỗi khi thực hiện chức năng "..name..":", err)
-            game.StarterGui:SetCore("SendNotification", {
-                Title = "Lỗi",
-                Text = "Có lỗi xảy ra khi thực hiện "..name,
-                Duration = 3,
-            })
-        end
+    local btnCorner = Instance.new("UICorner")
+    btnCorner.CornerRadius = UDim.new(0, 8)
+    btnCorner.Parent = btn
+    
+    btn.MouseEnter:Connect(function()
+        tweenService:Create(
+            btn,
+            TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {BackgroundColor3 = Color3.fromRGB(200, 200, 200)}
+        ):Play()
     end)
+    
+    btn.MouseLeave:Connect(function()
+        tweenService:Create(
+            btn,
+            TweenInfo.new(0.15, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {BackgroundColor3 = Color3.fromRGB(180, 180, 180)}
+        ):Play()
+    end)
+    
+    btn.MouseButton1Down:Connect(function()
+        tweenService:Create(
+            btn,
+            TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {BackgroundColor3 = Color3.fromRGB(220, 220, 220)}
+        ):Play()
+    end)
+    
+    btn.MouseButton1Up:Connect(function()
+        tweenService:Create(
+            btn,
+            TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {BackgroundColor3 = Color3.fromRGB(200, 200, 200)}
+        ):Play()
+        pcall(callback) -- Bẫy lỗi callback
+    end)
+    
+    return btn
 end
 
--- 1. Tp end (đã sửa theo yêu cầu)
-createButton("Tp end", function()
-    local function performTeleport()
-        -- Kiểm tra và chuẩn bị nhân vật
-        local character = player.Character
-        if not character then
-            character = player.CharacterAdded:Wait()
-        end
+-- 1. Chức năng Dịch Chuyển End
+createSilverButton("DỊCH CHUYỂN END", UDim2.new(0.5, 0, 0.2, 0), function()
+    local function teleportToEnd()
+        local character = player.Character or player.CharacterAdded:Wait()
+        if not character then return end
         
-        local humanoid = character:WaitForChild("Humanoid")
-        local hrp = character:WaitForChild("HumanoidRootPart")
+        local humanoid = character:FindFirstChildOfClass("Humanoid")
+        local hrp = character:FindFirstChild("HumanoidRootPart")
         
-        -- Cố định nhân vật và dịch chuyển
+        if not humanoid or not hrp then return end
+        
         hrp.Anchored = true
         hrp.CFrame = CFrame.new(-424, 30, -49041)
         
-        -- Thông báo đang chờ baseplate
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "TP End",
-            Text = "Đang chờ FinalBasePlate...",
-            Duration = 1,
-        })
+        if not workspace:FindFirstChild("Baseplates") then 
+            hrp.Anchored = false
+            return 
+        end
         
-        -- Chờ baseplate xuất hiện
-        repeat task.wait() until workspace.Baseplates:FindFirstChild("FinalBasePlate")
+        repeat task.wait() until workspace.Baseplates:FindFirstChild("FinalBasePlate") or not hrp
+        
         local BasePart = workspace.Baseplates:FindFirstChild("FinalBasePlate")
-        local OurLaw = BasePart:FindFirstChild("OutlawBase")
-        local Sen = OurLaw:FindFirstChild("Sentries")
+        if not BasePart then
+            hrp.Anchored = false
+            return
+        end
         
-        -- Kiểm tra và kích hoạt ghế pháo
+        local OurLaw = BasePart:FindFirstChild("OutlawBase")
+        if not OurLaw then
+            hrp.Anchored = false
+            return
+        end
+        
+        local Sen = OurLaw:FindFirstChild("Sentries")
+        if not Sen then
+            hrp.Anchored = false
+            return
+        end
+        
         if Sen:FindFirstChild("TurretSpot") and Sen.TurretSpot:FindFirstChild("MaximGun") and Sen.TurretSpot.MaximGun:FindFirstChild("VehicleSeat") then
             task.wait(1.5)
             
-            -- Kích hoạt tất cả ghế pháo
-            for i, v in pairs(Sen:FindFirstChild("TurretSpot"):GetChildren()) do
+            for _, v in pairs(Sen:FindFirstChild("TurretSpot"):GetChildren()) do
                 if v.Name == "MaximGun" and v:FindFirstChild("VehicleSeat") then
                     v.VehicleSeat.Disabled = false
                 end
@@ -176,122 +166,82 @@ createButton("Tp end", function()
             task.wait(0.5)
             hrp.Anchored = false
             
-            -- Thử ngồi vào ghế
             repeat 
                 task.wait()
-                for i, v in pairs(Sen:FindFirstChild("TurretSpot"):GetChildren()) do
+                for _, v in pairs(Sen:FindFirstChild("TurretSpot"):GetChildren()) do
                     if v.Name == "MaximGun" and v:FindFirstChild("VehicleSeat") then
                         hrp.CFrame = v:FindFirstChild("VehicleSeat").CFrame
                     end
                 end
-            until humanoid.Sit == true
-            
-            -- Thông báo thành công
-            game.StarterGui:SetCore("SendNotification", {
-                Title = "Thành công",
-                Text = "Đã dịch chuyển và ngồi pháo",
-                Duration = 3,
-            })
+            until humanoid.Sit == true or not humanoid or humanoid.Health <= 0
         else
             hrp.Anchored = false
-            game.StarterGui:SetCore("SendNotification", {
-                Title = "Lỗi",
-                Text = "Không tìm thấy ghế pháo",
-                Duration = 3,
-            })
         end
     end
 
-    -- Thực hiện teleport 2 lần cách nhau 0.5 giây
-    performTeleport()
+    pcall(teleportToEnd)
     task.wait(0.5)
-    performTeleport()
+    pcall(teleportToEnd)
 end)
 
--- 2. NPC Lock
-local oldMinZoom, oldMaxZoom = nil, nil
+-- 2. Chức năng Khóa NPC
 local npcLockEnabled = false
-local npcLockScript = nil
+local npcLockConnection = nil
 
-createButton("NPC Lock", function()
+createSilverButton("KHÓA NPC", UDim2.new(0.5, 0, 0.35, 0), function()
     npcLockEnabled = not npcLockEnabled
     if npcLockEnabled then
-        oldMinZoom = player.CameraMinZoomDistance
-        oldMaxZoom = player.CameraMaxZoomDistance
-        player.CameraMinZoomDistance = 0.5
-        player.CameraMaxZoomDistance = 50
-        
-        local success, err = pcall(function()
-            npcLockScript = loadstring(game:HttpGet("https://raw.githubusercontent.com/huybuda1/Anh-Con-PHD-Troll/refs/heads/main/AnhCon_TheNao_LaiManh.lua"))()
-            if type(npcLockScript) == 'function' then
-                npcLockScript()
-            end
+        local success, result = pcall(function()
+            return loadstring(game:HttpGet("https://raw.githubusercontent.com/huybuda1/Anh-Con-PHD-Troll/refs/heads/main/AnhCon_TheNao_LaiManh.lua", true))()
         end)
         
-        if not success then
-            warn("Lỗi khi tải NPC Lock:", err)
+        if success and type(result) == 'function' then
+            npcLockConnection = result()
+        else
+            warn("Lỗi khi tải NPC Lock:", result)
             npcLockEnabled = false
-            player.CameraMinZoomDistance = oldMinZoom or 0.5
-            player.CameraMaxZoomDistance = oldMaxZoom or 100
-            game.StarterGui:SetCore("SendNotification", {
-                Title = "Lỗi",
-                Text = "Không thể tải script NPC Lock",
-                Duration = 3,
-            })
-            return
         end
-        
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "NPC Lock",
-            Text = "Đã bật NPC Lock!",
-            Duration = 2,
-        })
     else
-        player.CameraMinZoomDistance = oldMinZoom or 0.5
-        player.CameraMaxZoomDistance = oldMaxZoom or 100
-        if npcLockScript then
-            pcall(function() npcLockScript:Disconnect() end)
-            npcLockScript = nil
+        if npcLockConnection then
+            pcall(function() 
+                if type(npcLockConnection) == 'function' then
+                    npcLockConnection()
+                else
+                    npcLockConnection:Disconnect()
+                end
+            end)
+            npcLockConnection = nil
         end
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "NPC Lock",
-            Text = "Đã tắt NPC Lock!",
-            Duration = 2,
-        })
     end
 end)
 
--- 3. Noclip
+-- 3. Chức năng Xuyên Tường
 local noclipEnabled = false
 local noclipConnection = nil
 
-createButton("noclip", function()
-    noclipEnabled = not noclipEnabled
-
-    local function Noclip()
-        local char = player.Character
-        if char then
-            for _, part in pairs(char:GetDescendants()) do
-                if part:IsA("BasePart") then
-                    part.CanCollide = false
-                end
-            end
+local function NoclipLoop()
+    if not noclipEnabled then return end
+    
+    local char = player.Character
+    if not char then return end
+    
+    for _, part in pairs(char:GetDescendants()) do
+        if part:IsA("BasePart") then
+            part.CanCollide = false
         end
     end
+end
 
+createSilverButton("XUYÊN TƯỜNG", UDim2.new(0.5, 0, 0.5, 0), function()
+    noclipEnabled = not noclipEnabled
+    
     if noclipEnabled then
-        noclipConnection = game:GetService("RunService").Stepped:Connect(Noclip)
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "noclip",
-            Text = "Đã bật xuyên tường!",
-            Duration = 2,
-        })
-    else
-        if noclipConnection then
-            noclipConnection:Disconnect()
-            noclipConnection = nil
-        end
+        noclipConnection = game:GetService("RunService").Stepped:Connect(NoclipLoop)
+    elseif noclipConnection then
+        noclipConnection:Disconnect()
+        noclipConnection = nil
         
+        -- Khôi phục collision khi tắt
         local char = player.Character
         if char then
             for _, part in pairs(char:GetDescendants()) do
@@ -300,73 +250,32 @@ createButton("noclip", function()
                 end
             end
         end
-        
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "noclip",
-            Text = "Đã tắt xuyên tường!",
-            Duration = 2,
-        })
     end
 end)
 
--- 4. Full Bright (nút mới)
-local originalBrightness = nil
+-- 4. Chức năng Full Bright
 local fullBrightEnabled = false
+local originalLightingSettings = {
+    Ambient = game:GetService("Lighting").Ambient,
+    Brightness = game:GetService("Lighting").Brightness,
+    GlobalShadows = game:GetService("Lighting").GlobalShadows,
+    OutdoorAmbient = game:GetService("Lighting").OutdoorAmbient
+}
 
-createButton("Full Bright", function()
+createSilverButton("FULL BRIGHT", UDim2.new(0.5, 0, 0.65, 0), function()
     local lighting = game:GetService("Lighting")
     fullBrightEnabled = not fullBrightEnabled
     
     if fullBrightEnabled then
-        -- Lưu giá trị ánh sáng ban đầu
-        if not originalBrightness then
-            originalBrightness = {
-                Ambient = lighting.Ambient,
-                Brightness = lighting.Brightness,
-                GlobalShadows = lighting.GlobalShadows,
-                OutdoorAmbient = lighting.OutdoorAmbient
-            }
-        end
-        
-        -- Giảm bóng tối 85%
         lighting.Ambient = Color3.new(1, 1, 1)
         lighting.Brightness = 2
         lighting.GlobalShadows = false
         lighting.OutdoorAmbient = Color3.new(1, 1, 1)
-        
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "Full Bright",
-            Text = "Đã bật Full Bright!",
-            Duration = 2,
-        })
     else
-        -- Khôi phục ánh sáng ban đầu
-        if originalBrightness then
-            lighting.Ambient = originalBrightness.Ambient
-            lighting.Brightness = originalBrightness.Brightness
-            lighting.GlobalShadows = originalBrightness.GlobalShadows
-            lighting.OutdoorAmbient = originalBrightness.OutdoorAmbient
-        end
-        
-        game.StarterGui:SetCore("SendNotification", {
-            Title = "Full Bright",
-            Text = "Đã tắt Full Bright!",
-            Duration = 2,
-        })
-    end
-end)
-
--- Auto teleport nếu rơi dưới map
-task.spawn(function()
-    while true do
-        local char = player.Character
-        if char then
-            local hrp = char:FindFirstChild("HumanoidRootPart")
-            if hrp and hrp.Position.Y < 2.5 then
-                hrp.CFrame = CFrame.new(hrp.Position.X, 5, hrp.Position.Z)
-            end
-        end
-        task.wait(0.15)
+        lighting.Ambient = originalLightingSettings.Ambient
+        lighting.Brightness = originalLightingSettings.Brightness
+        lighting.GlobalShadows = originalLightingSettings.GlobalShadows
+        lighting.OutdoorAmbient = originalLightingSettings.OutdoorAmbient
     end
 end)
 
@@ -375,7 +284,20 @@ gui.Destroying:Connect(function()
     if noclipConnection then
         noclipConnection:Disconnect()
     end
-    if npcLockScript then
-        pcall(function() npcLockScript:Disconnect() end)
+    if npcLockConnection then
+        pcall(function() 
+            if type(npcLockConnection) == 'function' then
+                npcLockConnection()
+            else
+                npcLockConnection:Disconnect()
+            end
+        end)
     end
+    
+    -- Khôi phục lighting
+    local lighting = game:GetService("Lighting")
+    lighting.Ambient = originalLightingSettings.Ambient
+    lighting.Brightness = originalLightingSettings.Brightness
+    lighting.GlobalShadows = originalLightingSettings.GlobalShadows
+    lighting.OutdoorAmbient = originalLightingSettings.OutdoorAmbient
 end)
