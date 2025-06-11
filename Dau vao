@@ -1,3 +1,94 @@
+local function TurboBoost()
+    -- Khai báo services
+    local lighting = game:GetService("Lighting")
+    local runService = game:GetService("RunService")
+    local players = game:GetService("Players")
+    local localPlayer = players.LocalPlayer
+    local debris = game:GetService("Debris")
+
+    -- Tối ưu cực độ
+    settings().Rendering.QualityLevel = 1  -- Độ chi tiết thấp nhất
+    settings().Physics.PhysicsEnvironmentalThrottle = Enum.EnviromentalPhysicsThrottle.Disabled
+    settings().Physics.ThrottleAdjustTime = 60
+    
+    -- Tắt mọi hiệu ứng hình ảnh
+    lighting.GlobalShadows = false
+    lighting.FogEnd = 9e9
+    lighting.Brightness = 2
+    lighting.ClockTime = 12
+    lighting.GeographicLatitude = 0
+    
+    -- Xóa các effect
+    for _, effect in pairs(lighting:GetChildren()) do
+        if effect:IsA("PostEffect") then
+            effect:Destroy()
+        end
+    end
+    
+    -- Tối ưu nhân vật
+    local function optimizeCharacter(character)
+        if not character then return end
+        
+        for _, part in pairs(character:GetDescendants()) do
+            if part:IsA("BasePart") then
+                part.Material = Enum.Material.Plastic
+                part.Reflectance = 0
+                part.CastShadow = false
+                
+                if part:IsA("MeshPart") then
+                    part.RenderFidelity = Enum.RenderFidelity.Performance
+                end
+            end
+            
+            if part:IsA("ParticleEmitter") or part:IsA("Trail") then
+                part:Destroy()
+            end
+            
+            if part:IsA("Decal") then
+                part.Transparency = 1
+            end
+        end
+    end
+
+    -- Áp dụng cho nhân vật hiện tại
+    optimizeCharacter(localPlayer.Character)
+    
+    -- Áp dụng khi respawn
+    localPlayer.CharacterAdded:Connect(optimizeCharacter)
+    
+    -- Tối ưu workspace
+    for _, obj in pairs(workspace:GetDescendants()) do
+        if obj:IsA("ParticleEmitter") or obj:IsA("Trail") then
+            debris:AddItem(obj, 0)
+        end
+        
+        if obj:IsA("BasePart") and not obj:IsDescendantOf(localPlayer.Character) then
+            obj.Material = Enum.Material.Plastic
+            obj.Reflectance = 0
+            obj.CastShadow = false
+        end
+    end
+    
+    -- Siêu tối ưu RenderStepped
+    runService:SetThrottleFramerateEnabled(true)
+    runService:SetThrottleFramerate(144)  -- Giới hạn FPS cao
+    
+    -- Tối ưu network
+    game:GetService("NetworkSettings").PhysicsSender = 1
+    game:GetService("NetworkSettings").ReceiveRate = 30
+    
+    -- Tăng tốc độ render
+    game:GetService("Graphics").QualityLevel = 1
+    game:GetService("Graphics").Suspended = false
+    
+    print("⚡ TURBO MODE ACTIVATED! Game đã được tối ưu cực mượt!")
+end
+
+-- Chạy khi game bắt đầu
+TurboBoost()
+
+-- Chạy lại khi respawn
+game:GetService("Players").LocalPlayer.CharacterAdded:Connect(TurboBoost)
 local player = game:GetService("Players").LocalPlayer
 local tweenService = game:GetService("TweenService")
 
