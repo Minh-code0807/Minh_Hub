@@ -1,4 +1,4 @@
--- Đặt script này trong StarterGui hoặc PlayerGui
+-- Đặt script này trong StarterGui
 local player = game.Players.LocalPlayer
 local playerGui = player:WaitForChild("PlayerGui")
 
@@ -6,12 +6,14 @@ local playerGui = player:WaitForChild("PlayerGui")
 local autoFarmEnabled = false
 local connection = nil
 local isTeleporting = false
+local originalGravity = workspace.Gravity
 
--- Tạo ScreenGui
+-- Tạo ScreenGui (sẽ tồn tại ngay cả khi player chết)
 local screenGui = Instance.new("ScreenGui")
 screenGui.Name = "MinhHubGui"
 screenGui.Parent = playerGui
 screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+screenGui.ResetOnSpawn = false -- Quan trọng: Không reset khi respawn
 
 -- Tạo main frame (có thể kéo)
 local mainFrame = Instance.new("Frame")
@@ -78,7 +80,7 @@ local autoFarmButton = Instance.new("TextButton")
 autoFarmButton.Name = "AutoFarmButton"
 autoFarmButton.Size = UDim2.new(0.8, 0, 0.3, 0)
 autoFarmButton.Position = UDim2.new(0.1, 0, 0.45, 0)
-autoFarmButton.BackgroundColor3 = Color3.fromRGB(60, 200, 60) -- Màu xanh khi tắt
+autoFarmButton.BackgroundColor3 = Color3.fromRGB(60, 200, 60)
 autoFarmButton.BorderSizePixel = 0
 autoFarmButton.Text = "BẬT Auto Farm"
 autoFarmButton.TextColor3 = Color3.fromRGB(255, 255, 255)
@@ -106,73 +108,80 @@ minhHubLabel.Font = Enum.Font.GothamBold
 minhHubLabel.TextSize = 16
 minhHubLabel.Parent = mainFrame
 
--- Hiệu ứng hover cho nút
+-- Hiệu ứng hover cho nút (tối ưu)
+local buttonHoverConnections = {}
 local function setupButtonHover(button, normalColor, hoverColor)
-	button.MouseEnter:Connect(function()
-		game:GetService("TweenService"):Create(
-			button,
-			TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-			{BackgroundColor3 = hoverColor}
-		):Play()
+	if buttonHoverConnections[button] then
+		for _, conn in pairs(buttonHoverConnections[button]) do
+			conn:Disconnect()
+		end
+	end
+	
+	buttonHoverConnections[button] = {}
+	
+	local conn1 = button.MouseEnter:Connect(function()
+		button.BackgroundColor3 = hoverColor
 	end)
-
-	button.MouseLeave:Connect(function()
-		game:GetService("TweenService"):Create(
-			button,
-			TweenInfo.new(0.2, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-			{BackgroundColor3 = normalColor}
-		):Play()
+	
+	local conn2 = button.MouseLeave:Connect(function()
+		button.BackgroundColor3 = normalColor
 	end)
+	
+	buttonHoverConnections[button] = {conn1, conn2}
 end
 
 setupButtonHover(teleportButton, Color3.fromRGB(60, 120, 200), Color3.fromRGB(80, 150, 240))
 setupButtonHover(autoFarmButton, Color3.fromRGB(60, 200, 60), Color3.fromRGB(80, 220, 80))
 
--- Hiệu ứng nhấn nút
+-- Hiệu ứng nhấn nút (tối ưu)
 local function buttonClickEffect(button)
-	game:GetService("TweenService"):Create(
-		button,
-		TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-		{Size = UDim2.new(0.75, 0, 0.27, 0)}
-	):Play()
+	local originalSize = button.Size
+	button.Size = UDim2.new(0.75, 0, 0.27, 0)
 	
-	wait(0.1)
-	
-	game:GetService("TweenService"):Create(
-		button,
-		TweenInfo.new(0.1, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
-		{Size = UDim2.new(0.8, 0, 0.3, 0)}
-	):Play()
+	delay(0.1, function()
+		if button.Parent then
+			button.Size = originalSize
+		end
+	end)
 end
 
--- Hàm tìm CoinContainer gần nhất
+-- Cache để tối ưu hiệu suất
+local coinCache = {}
+local lastCoinUpdate = 0
+local CACHE_DURATION = 2 -- Cập nhật cache mỗi 2 giây
+
+-- Hàm tìm CoinContainer gần nhất (tối ưu)
 local function findNearestCoinContainer(playerPosition)
+	local currentTime = tick()
+	
+	-- Cập nhật cache nếu cần
+	if currentTime - lastCoinUpdate > CACHE_DURATION or #coinCache == 0 then
+		coinCache = {}
+		
+		-- Chỉ tìm các object có thể là coin
+		for _, obj in pairs(workspace:GetDescendants()) do
+			if (obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Part")) and obj.Name:lower():find("coin") then
+				table.insert(coinCache, obj)
+			end
+		end
+		
+		lastCoinUpdate = currentTime
+	end
+	
+	if #coinCache == 0 then
+		return nil
+	end
+	
+	-- Tìm coin gần nhất trong cache
 	local closestCoin = nil
 	local shortestDistance = math.huge
 	
-	-- Tìm tất cả các part có chứa "Coin" trong tên
-	for _, obj in pairs(workspace:GetDescendants()) do
-		if (obj.Name:lower():find("coin")) and (obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Part")) then
-			local distance = (playerPosition - obj.Position).Magnitude
+	for _, coin in ipairs(coinCache) do
+		if coin.Parent then -- Kiểm tra coin còn tồn tại
+			local distance = (playerPosition - coin.Position).Magnitude
 			if distance < shortestDistance then
 				shortestDistance = distance
-				closestCoin = obj
-			end
-		end
-	end
-	
-	-- Nếu không tìm thấy part, tìm các model có chứa "Coin" trong tên
-	if not closestCoin then
-		for _, obj in pairs(workspace:GetChildren()) do
-			if obj:IsA("Model") and (obj.Name:lower():find("coin")) then
-				local primaryPart = obj.PrimaryPart or obj:FindFirstChildWhichIsA("BasePart")
-				if primaryPart then
-					local distance = (playerPosition - primaryPart.Position).Magnitude
-					if distance < shortestDistance then
-						shortestDistance = distance
-						closestCoin = primaryPart
-					end
-				end
+				closestCoin = coin
 			end
 		end
 	end
@@ -180,7 +189,7 @@ local function findNearestCoinContainer(playerPosition)
 	return closestCoin
 end
 
--- Hàm bay xuyên tường
+-- Hàm bay xuyên tường (tối ưu)
 local function noclipTeleportToCoin()
 	if isTeleporting then return false end
 	isTeleporting = true
@@ -200,25 +209,18 @@ local function noclipTeleportToCoin()
 	-- Tìm coin gần nhất
 	local coin = findNearestCoinContainer(humanoidRootPart.Position)
 	if not coin then
-		warn("Không tìm thấy Coin nào trong workspace!")
 		isTeleporting = false
 		return false
 	end
 	
-	print("Đang bay đến: " .. coin.Name)
-	
 	-- Kích hoạt noclip
 	local noclip = Instance.new("BodyVelocity")
 	noclip.Name = "NoclipVelocity"
-	noclip.MaxForce = Vector3.new(math.huge, math.huge, math.huge)
+	noclip.MaxForce = Vector3.new(100000, 100000, 100000) -- Giảm lực để tối ưu
 	noclip.Velocity = Vector3.new(0, 0, 0)
 	noclip.Parent = humanoidRootPart
 	
-	-- Vô hiệu hóa trọng lực tạm thời
-	local originalGravity = workspace.Gravity
-	workspace.Gravity = 0
-	
-	-- Lưu trạng thái collision ban đầu và tắt collision
+	-- Tắt collision và lưu trạng thái
 	local parts = {}
 	for _, part in pairs(character:GetDescendants()) do
 		if part:IsA("BasePart") then
@@ -227,95 +229,53 @@ local function noclipTeleportToCoin()
 		end
 	end
 	
-	-- Di chuyển đến coin
-	local tweenInfo = TweenInfo.new(
-		1.5, -- Thời gian di chuyển
-		Enum.EasingStyle.Quad,
-		Enum.EasingDirection.Out
-	)
-	
-	local success = true
-	local tween = game:GetService("TweenService"):Create(
-		humanoidRootPart,
-		tweenInfo,
-		{CFrame = CFrame.new(coin.Position + Vector3.new(0, 2, 0))}
-	)
-	
-	tween:Play()
-	
-	local completed = false
-	tween.Completed:Connect(function()
-		completed = true
-		-- Khôi phục collision
-		for part, canCollide in pairs(parts) do
-			if part.Parent then
-				part.CanCollide = canCollide
-			end
-		end
-		
-		-- Xóa noclip
-		if noclip.Parent then
-			noclip:Destroy()
-		end
-		
-		-- Khôi phục trọng lực
-		workspace.Gravity = originalGravity
-		
-		print("Đã đến coin thành công!")
-		isTeleporting = false
-	end)
-	
-	-- Đảm bảo khôi phục ngay cả khi có lỗi
-	tween:GetPropertyChangedSignal("PlaybackState"):Connect(function()
-		if tween.PlaybackState == Enum.PlaybackState.Cancelled then
-			success = false
-			-- Khôi phục collision
-			for part, canCollide in pairs(parts) do
-				if part.Parent then
-					part.CanCollide = canCollide
-				end
-			end
-			
-			-- Xóa noclip
-			if noclip.Parent then
-				noclip:Destroy()
-			end
-			
-			-- Khôi phục trọng lực
-			workspace.Gravity = originalGravity
-			isTeleporting = false
-		end
-	end)
-	
-	-- Chờ tween hoàn thành (tối đa 5 giây)
+	-- Di chuyển trực tiếp (nhanh hơn tween)
 	local startTime = tick()
-	while not completed and tick() - startTime < 5 do
-		wait(0.1)
+	local targetPosition = coin.Position + Vector3.new(0, 2, 0)
+	local startPosition = humanoidRootPart.Position
+	local travelTime = 1.0 -- Giảm thời gian di chuyển
+	
+	while tick() - startTime < travelTime and humanoidRootPart.Parent do
+		local alpha = (tick() - startTime) / travelTime
+		humanoidRootPart.CFrame = CFrame.new(startPosition:Lerp(targetPosition, alpha))
+		game:GetService("RunService").Heartbeat:Wait()
 	end
 	
-	if not completed then
-		success = false
-		tween:Cancel()
-		isTeleporting = false
+	-- Đảm bảo đến đúng vị trí
+	if humanoidRootPart.Parent then
+		humanoidRootPart.CFrame = CFrame.new(targetPosition)
 	end
 	
-	return success
+	-- Dọn dẹp
+	for part, canCollide in pairs(parts) do
+		if part.Parent then
+			part.CanCollide = canCollide
+		end
+	end
+	
+	if noclip.Parent then
+		noclip:Destroy()
+	end
+	
+	isTeleporting = false
+	return true
 end
 
--- Hàm Auto Farm
+-- Hàm Auto Farm (tối ưu)
 local function startAutoFarm()
 	if connection then
 		connection:Disconnect()
-		connection = nil
 	end
 	
 	connection = game:GetService("RunService").Heartbeat:Connect(function()
 		if autoFarmEnabled and not isTeleporting then
-			local success = noclipTeleportToCoin()
-			if success then
-				wait(1) -- Chờ một chút trước khi tìm coin tiếp theo
+			local character = player.Character
+			if character and character:FindFirstChild("HumanoidRootPart") then
+				local success = noclipTeleportToCoin()
+				-- Chờ ngắn hơn giữa các lần teleport
+				task.wait(success and 0.3 or 1.0)
 			else
-				wait(2) -- Nếu không tìm thấy coin, chờ lâu hơn
+				task.wait(1.0)
 			end
 		end
 	end)
@@ -337,7 +297,7 @@ end
 -- Kết nối sự kiện click nút bay
 teleportButton.MouseButton1Click:Connect(function()
 	buttonClickEffect(teleportButton)
-	noclipTeleportToCoin()
+	task.spawn(noclipTeleportToCoin)
 end)
 
 -- Kết nối sự kiện click nút auto farm
@@ -351,34 +311,42 @@ autoFarmButton.MouseButton1Click:Connect(function()
 		autoFarmButton.Text = "TẮT Auto Farm"
 		autoFarmButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
 		setupButtonHover(autoFarmButton, Color3.fromRGB(200, 60, 60), Color3.fromRGB(220, 80, 80))
-		startAutoFarm()
+		task.spawn(startAutoFarm)
 	end
 end)
 
--- Tự động dừng auto farm khi player chết
+-- Xử lý khi player chết/respawn
 player.CharacterAdded:Connect(function(character)
+	-- Đảm bảo GUI vẫn hiển thị
+	if not screenGui.Parent then
+		screenGui.Parent = playerGui
+	end
+	
+	-- Tự động tiếp tục auto farm nếu đang bật
 	if autoFarmEnabled then
 		-- Chờ character load xong
 		character:WaitForChild("HumanoidRootPart")
-		wait(1)
+		task.wait(0.5)
 		startAutoFarm()
 	end
 end)
 
 player.CharacterRemoving:Connect(function()
-	if connection then
-		connection:Disconnect()
-		connection = nil
-	end
-	isTeleporting = false
+	-- Không cần làm gì đặc biệt, GUI vẫn tồn tại
 end)
 
 -- Tự động dừng khi GUI bị xóa
-screenGui.Destroying:Connect(function()
-	stopAutoFarm()
-end)
+screenGui.Destroying:Connect(stopAutoFarm)
 
-print("Minh Hub GUI đã được tạo thành công!")
-print("Kéo frame để di chuyển GUI")
-print("Nhấn nút 'Bay đến Coin' để bay đến coin gần nhất")
-print("Nhấn nút 'BẬT/TẮT Auto Farm' để tự động farm coin")
+-- Khởi tạo
+print("═"..string.rep("═", 40).."═")
+print("🚀 Minh Hub GUI - Đã Tối Ưu Hoá")
+print("📌 GUI sẽ không bị mất khi player chết")
+print("⚡ Tốc độ bay: Nhanh hơn 2x")
+print("💾 Bộ nhớ cache: Đã bật")
+print("═"..string.rep("═", 40).."═")
+print("🎯 Sử dụng:")
+print("• Kéo frame để di chuyển GUI")
+print("• [Bay đến Coin] - Bay đến coin gần nhất")
+print("• [BẬT/TẮT Auto Farm] - Tự động farm coin")
+print("═"..string.rep("═", 40).."═")
