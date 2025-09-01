@@ -98,11 +98,11 @@ buttonCorner2.Parent = autoFarmButton
 
 -- Tạo label Minh Hub
 local minhHubLabel = Instance.new("TextLabel")
-minhHubLabel.Name = "MinhHubLabel"
+minhHubLabel.Name = "LerolalaHubLabel"
 minhHubLabel.Size = UDim2.new(0.8, 0, 0.2, 0)
 minhHubLabel.Position = UDim2.new(0.1, 0, 0.78, 0)
 minhHubLabel.BackgroundTransparency = 1
-minhHubLabel.Text = "Minh Hub"
+minhHubLabel.Text = "Lerolala Hub"
 minhHubLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
 minhHubLabel.Font = Enum.Font.GothamBold
 minhHubLabel.TextSize = 16
@@ -268,7 +268,7 @@ end
 -- Hàm dừng Auto Farm
 local function stopAutoFarm()
 	autoFarmEnabled = false
-	autoFarmButton.Text = "BẬT Auto Farm"
+	autoFarmButton.Text = "ON Auto Farm"
 	autoFarmButton.BackgroundColor3 = Color3.fromRGB(60, 200, 60)
 	setupButtonHover(autoFarmButton, Color3.fromRGB(60, 200, 60), Color3.fromRGB(80, 220, 80))
 	
@@ -292,7 +292,7 @@ autoFarmButton.MouseButton1Click:Connect(function()
 		stopAutoFarm()
 	else
 		autoFarmEnabled = true
-		autoFarmButton.Text = "TẮT Auto Farm"
+		autoFarmButton.Text = "OFF Auto Farm"
 		autoFarmButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
 		setupButtonHover(autoFarmButton, Color3.fromRGB(200, 60, 60), Color3.fromRGB(220, 80, 80))
 		task.spawn(startAutoFarm)
