@@ -148,7 +148,7 @@ end
 -- Cache để tối ưu hiệu suất
 local coinCache = {}
 local lastCoinUpdate = 0
-local CACHE_DURATION = 2 -- Cập nhật cache mỗi 2 giây
+local CACHE_DURATION = 0.5 -- Giảm thời gian cache xuống 0.5 giây
 
 -- Hàm tìm CoinContainer gần nhất (tối ưu)
 local function findNearestCoinContainer(playerPosition)
@@ -160,7 +160,7 @@ local function findNearestCoinContainer(playerPosition)
 		
 		-- Chỉ tìm các object có thể là coin
 		for _, obj in pairs(workspace:GetDescendants()) do
-			if (obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Part")) and obj.Name:lower():find("coin") then
+			if (obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Part")) and (obj.Name:lower():find("coin") or obj.Name:lower():find("money") or obj.Name:lower():find("dollar") or obj.Name:lower():find("cash")) then
 				table.insert(coinCache, obj)
 			end
 		end
@@ -216,7 +216,7 @@ local function noclipTeleportToCoin()
 	-- Kích hoạt noclip
 	local noclip = Instance.new("BodyVelocity")
 	noclip.Name = "NoclipVelocity"
-	noclip.MaxForce = Vector3.new(100000, 100000, 100000) -- Giảm lực để tối ưu
+	noclip.MaxForce = Vector3.new(100000, 100000, 100000)
 	noclip.Velocity = Vector3.new(0, 0, 0)
 	noclip.Parent = humanoidRootPart
 	
@@ -229,24 +229,11 @@ local function noclipTeleportToCoin()
 		end
 	end
 	
-	-- Di chuyển trực tiếp (nhanh hơn tween)
-	local startTime = tick()
+	-- Di chuyển trực tiếp đến coin (bay nhanh)
 	local targetPosition = coin.Position + Vector3.new(0, 2, 0)
-	local startPosition = humanoidRootPart.Position
-	local travelTime = 1.0 -- Giảm thời gian di chuyển
+	humanoidRootPart.CFrame = CFrame.new(targetPosition)
 	
-	while tick() - startTime < travelTime and humanoidRootPart.Parent do
-		local alpha = (tick() - startTime) / travelTime
-		humanoidRootPart.CFrame = CFrame.new(startPosition:Lerp(targetPosition, alpha))
-		game:GetService("RunService").Heartbeat:Wait()
-	end
-	
-	-- Đảm bảo đến đúng vị trí
-	if humanoidRootPart.Parent then
-		humanoidRootPart.CFrame = CFrame.new(targetPosition)
-	end
-	
-	-- Dọn dẹp
+	-- Dọn dẹp ngay lập tức
 	for part, canCollide in pairs(parts) do
 		if part.Parent then
 			part.CanCollide = canCollide
@@ -271,11 +258,8 @@ local function startAutoFarm()
 		if autoFarmEnabled and not isTeleporting then
 			local character = player.Character
 			if character and character:FindFirstChild("HumanoidRootPart") then
-				local success = noclipTeleportToCoin()
-				-- Chờ ngắn hơn giữa các lần teleport
-				task.wait(success and 0.3 or 1.0)
-			else
-				task.wait(1.0)
+				noclipTeleportToCoin()
+				-- KHÔNG CHỜ - bay liên tục không delay
 			end
 		end
 	end)
@@ -326,7 +310,7 @@ player.CharacterAdded:Connect(function(character)
 	if autoFarmEnabled then
 		-- Chờ character load xong
 		character:WaitForChild("HumanoidRootPart")
-		task.wait(0.5)
+		task.wait(0.1) -- Giảm thời gian chờ
 		startAutoFarm()
 	end
 end)
@@ -342,11 +326,11 @@ screenGui.Destroying:Connect(stopAutoFarm)
 print("═"..string.rep("═", 40).."═")
 print("🚀 Minh Hub GUI - Đã Tối Ưu Hoá")
 print("📌 GUI sẽ không bị mất khi player chết")
-print("⚡ Tốc độ bay: Nhanh hơn 2x")
+print("⚡ Tốc độ bay: CỰC NHANH - KHÔNG CHỜ")
 print("💾 Bộ nhớ cache: Đã bật")
 print("═"..string.rep("═", 40).."═")
 print("🎯 Sử dụng:")
 print("• Kéo frame để di chuyển GUI")
 print("• [Bay đến Coin] - Bay đến coin gần nhất")
-print("• [BẬT/TẮT Auto Farm] - Tự động farm coin")
+print("• [BẬT/TẮT Auto Farm] - Tự động farm coin LIÊN TỤC")
 print("═"..string.rep("═", 40).."═")
