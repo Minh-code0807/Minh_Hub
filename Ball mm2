@@ -39,7 +39,7 @@ local CACHE_DURATION = 0.5
 ------------------------------------------------------------
 local Window = WindUI:CreateWindow({
     Title = "Sae | Minh Hub",
-    Icon = "star", -- 🟦 Icon kế bên tiêu đề
+    Icon = "rbxassetid://95026563462649", -- 🟦 Icon kế bên tiêu đề
     Author = "by MinhCode",
     Folder = "SaeMinhHub",
     NewElements = true,
