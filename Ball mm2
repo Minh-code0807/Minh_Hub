@@ -1,8 +1,10 @@
---// Sae | Minh Hub (WindUI Edition)
---// Original script reworked for WindUI framework by MinhCode
---// Keep all features: Teleport, AutoFarm, Cache, Optimization
+--// Sae | Minh Hub (WindUI Blue Edition)
+--// Enhanced by MinhCode
+--// Now includes: Icon header, YouTube tab, blue theme, and auto-open Main tab.
 
+------------------------------------------------------------
 --// Load WindUI
+------------------------------------------------------------
 local WindUI
 do
     local ok, result = pcall(function()
@@ -15,13 +17,16 @@ do
     end
 end
 
+------------------------------------------------------------
 --// Services
+------------------------------------------------------------
 local Players = game:GetService("Players")
 local RunService = game:GetService("RunService")
 local player = Players.LocalPlayer
-local HttpService = game:GetService("HttpService")
 
+------------------------------------------------------------
 --// Variables
+------------------------------------------------------------
 local autoFarmEnabled = false
 local connection = nil
 local isTeleporting = false
@@ -30,15 +35,15 @@ local lastCoinUpdate = 0
 local CACHE_DURATION = 0.5
 
 ------------------------------------------------------------
---// UI Window Setup
+--// UI Setup
 ------------------------------------------------------------
 local Window = WindUI:CreateWindow({
     Title = "Sae | Minh Hub",
+    Icon = "star", -- 🟦 Icon kế bên tiêu đề
     Author = "by MinhCode",
     Folder = "SaeMinhHub",
     NewElements = true,
     HideSearchBar = true,
-
     OpenButton = {
         Title = "Open Sae | Minh Hub",
         CornerRadius = UDim.new(1, 0),
@@ -46,14 +51,14 @@ local Window = WindUI:CreateWindow({
         Enabled = true,
         Draggable = true,
         Color = ColorSequence.new(
-            Color3.fromHex("#00FFC6"),
-            Color3.fromHex("#7D2CFF")
+            Color3.fromRGB(50, 160, 255), -- Xanh dương nhạt
+            Color3.fromRGB(0, 85, 255) -- Xanh dương đậm
         )
     }
 })
 
 ------------------------------------------------------------
---// UI Tabs
+--// Tabs
 ------------------------------------------------------------
 local MainTab = Window:Tab({
     Title = "Main",
@@ -63,6 +68,11 @@ local MainTab = Window:Tab({
 local AboutTab = Window:Tab({
     Title = "About",
     Icon = "info"
+})
+
+local YouTubeTab = Window:Tab({
+    Title = "YouTube",
+    Icon = "youtube"
 })
 
 ------------------------------------------------------------
@@ -148,12 +158,12 @@ local function stopAutoFarm()
 end
 
 ------------------------------------------------------------
---// UI Elements
+--// Main Tab UI
 ------------------------------------------------------------
 MainTab:Button({
     Title = "Fly to Coin",
     Icon = "navigation",
-    Color = Color3.fromHex("#308CFF"),
+    Color = Color3.fromRGB(0, 132, 255),
     Callback = function()
         noclipTeleportToCoin()
         WindUI:Notify({
@@ -167,6 +177,7 @@ MainTab:Toggle({
     Title = "Auto Farm Coins",
     Desc = "Automatically teleport to nearest coin.",
     Default = false,
+    Color = Color3.fromRGB(0, 140, 255),
     Callback = function(state)
         autoFarmEnabled = state
         if state then
@@ -188,15 +199,28 @@ MainTab:Toggle({
 MainTab:Button({
     Title = "Reset Character",
     Icon = "refresh-cw",
-    Color = Color3.fromHex("#FF6A30"),
+    Color = Color3.fromRGB(0, 102, 204),
     Callback = function()
         player.Character:BreakJoints()
     end
 })
 
 ------------------------------------------------------------
---// About Tab
+--// About Tab UI (Discord lên đầu)
 ------------------------------------------------------------
+AboutTab:Button({
+    Title = "Copy Discord Link",
+    Icon = "link",
+    Color = Color3.fromRGB(88, 101, 242),
+    Callback = function()
+        setclipboard("https://discord.gg/ftgs-development-hub-1300692552005189632")
+        WindUI:Notify({
+            Title = "Copied!",
+            Content = "Discord link copied to clipboard."
+        })
+    end
+})
+
 AboutTab:Image({
     Image = "rbxassetid://95026563462649",
     AspectRatio = "1:1",
@@ -209,22 +233,22 @@ AboutTab:Section({
 ⚡ Fast Coin AutoFarm
 🚀 One-click Teleport
 💾 Smart Cache System
-🎨 Powered by WindUI
+🎨 Blue Themed WindUI
 ]],
     TextSize = 18
 })
 
-AboutTab:Button({
-    Title = "Copy Discord Link",
-    Icon = "link",
-    Color = Color3.fromHex("#5865F2"),
-    Callback = function()
-        setclipboard("https://discord.gg/ftgs-development-hub-1300692552005189632")
-        WindUI:Notify({
-            Title = "Copied!",
-            Content = "Discord link copied to clipboard."
-        })
-    end
+------------------------------------------------------------
+--// YouTube Tab (hiển thị web)
+------------------------------------------------------------
+YouTubeTab:Section({
+    Title = "YouTube MinhCode",
+    Desc = "Watch tutorials, script showcases and devlogs!"
+})
+
+YouTubeTab:Web({
+    URL = "https://www.youtube.com/",
+    Height = 300
 })
 
 ------------------------------------------------------------
@@ -237,7 +261,11 @@ player.CharacterAdded:Connect(function(character)
     end
 end)
 
+------------------------------------------------------------
+--// Final Notify + Auto Open Main Tab
+------------------------------------------------------------
+Window:SelectTab(MainTab)
 Window:Notify({
     Title = "Sae | Minh Hub Loaded",
-    Content = "✅ Ready! GUI will stay after respawn.",
+    Content = "✅ Blue Edition ready! Auto-opened Main Tab.",
 })
