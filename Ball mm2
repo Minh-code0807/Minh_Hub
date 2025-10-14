@@ -1,336 +1,243 @@
--- Đặt script này trong StarterGui
-local player = game.Players.LocalPlayer
-local playerGui = player:WaitForChild("PlayerGui")
+--// Sae | Minh Hub (WindUI Edition)
+--// Original script reworked for WindUI framework by MinhCode
+--// Keep all features: Teleport, AutoFarm, Cache, Optimization
 
--- Biến toàn cục
+--// Load WindUI
+local WindUI
+do
+    local ok, result = pcall(function()
+        return require("./src/init")
+    end)
+    if ok then
+        WindUI = result
+    else
+        WindUI = loadstring(game:HttpGet("https://github.com/Footagesus/WindUI/releases/latest/download/main.lua"))()
+    end
+end
+
+--// Services
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local player = Players.LocalPlayer
+local HttpService = game:GetService("HttpService")
+
+--// Variables
 local autoFarmEnabled = false
 local connection = nil
 local isTeleporting = false
-local originalGravity = workspace.Gravity
-
--- Tạo ScreenGui (sẽ tồn tại ngay cả khi player chết)
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "MinhHubGui"
-screenGui.Parent = playerGui
-screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-screenGui.ResetOnSpawn = false -- Quan trọng: Không reset khi respawn
-
--- Tạo main frame (có thể kéo)
-local mainFrame = Instance.new("Frame")
-mainFrame.Name = "MainFrame"
-mainFrame.Size = UDim2.new(0, 220, 0, 130)
-mainFrame.Position = UDim2.new(0.5, -110, 0, 10)
-mainFrame.AnchorPoint = Vector2.new(0.5, 0)
-mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
-mainFrame.BorderSizePixel = 0
-mainFrame.Parent = screenGui
-
--- Thêm khả năng kéo cho frame
-local dragInput, dragStart, startPos
-local function update(input)
-	local delta = input.Position - dragStart
-	mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
-end
-
-mainFrame.InputBegan:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
-		dragStart = input.Position
-		startPos = mainFrame.Position
-		
-		input.Changed:Connect(function()
-			if input.UserInputState == Enum.UserInputState.End then
-				dragInput = nil
-			end
-		end)
-	end
-end)
-
-mainFrame.InputChanged:Connect(function(input)
-	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
-		dragInput = input
-	end
-end)
-
-game:GetService("UserInputService").InputChanged:Connect(function(input)
-	if input == dragInput then
-		update(input)
-	end
-end)
-
--- Tạo UICorner cho main frame
-local uiCorner = Instance.new("UICorner")
-uiCorner.CornerRadius = UDim.new(0, 8)
-uiCorner.Parent = mainFrame
-
--- Tạo nút bay
-local teleportButton = Instance.new("TextButton")
-teleportButton.Name = "TeleportButton"
-teleportButton.Size = UDim2.new(0.8, 0, 0.3, 0)
-teleportButton.Position = UDim2.new(0.1, 0, 0.1, 0)
-teleportButton.BackgroundColor3 = Color3.fromRGB(60, 120, 200)
-teleportButton.BorderSizePixel = 0
-teleportButton.Text = "Fly to ball"
-teleportButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-teleportButton.Font = Enum.Font.GothamBold
-teleportButton.TextSize = 14
-teleportButton.Parent = mainFrame
-
--- Tạo nút Auto Farm
-local autoFarmButton = Instance.new("TextButton")
-autoFarmButton.Name = "AutoFarmButton"
-autoFarmButton.Size = UDim2.new(0.8, 0, 0.3, 0)
-autoFarmButton.Position = UDim2.new(0.1, 0, 0.45, 0)
-autoFarmButton.BackgroundColor3 = Color3.fromRGB(60, 200, 60)
-autoFarmButton.BorderSizePixel = 0
-autoFarmButton.Text = "Ball Auto Farm"
-autoFarmButton.TextColor3 = Color3.fromRGB(255, 255, 255)
-autoFarmButton.Font = Enum.Font.GothamBold
-autoFarmButton.TextSize = 14
-autoFarmButton.Parent = mainFrame
-
--- Tạo UICorner cho các nút
-local buttonCorner = Instance.new("UICorner")
-buttonCorner.CornerRadius = UDim.new(0, 6)
-buttonCorner.Parent = teleportButton
-
-local buttonCorner2 = buttonCorner:Clone()
-buttonCorner2.Parent = autoFarmButton
-
--- Tạo label Minh Hub
-local minhHubLabel = Instance.new("TextLabel")
-minhHubLabel.Name = "LerolalaHubLabel"
-minhHubLabel.Size = UDim2.new(0.8, 0, 0.2, 0)
-minhHubLabel.Position = UDim2.new(0.1, 0, 0.78, 0)
-minhHubLabel.BackgroundTransparency = 1
-minhHubLabel.Text = "Lerolala Hub"
-minhHubLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-minhHubLabel.Font = Enum.Font.GothamBold
-minhHubLabel.TextSize = 16
-minhHubLabel.Parent = mainFrame
-
--- Hiệu ứng hover cho nút (tối ưu)
-local buttonHoverConnections = {}
-local function setupButtonHover(button, normalColor, hoverColor)
-	if buttonHoverConnections[button] then
-		for _, conn in pairs(buttonHoverConnections[button]) do
-			conn:Disconnect()
-		end
-	end
-	
-	buttonHoverConnections[button] = {}
-	
-	local conn1 = button.MouseEnter:Connect(function()
-		button.BackgroundColor3 = hoverColor
-	end)
-	
-	local conn2 = button.MouseLeave:Connect(function()
-		button.BackgroundColor3 = normalColor
-	end)
-	
-	buttonHoverConnections[button] = {conn1, conn2}
-end
-
-setupButtonHover(teleportButton, Color3.fromRGB(60, 120, 200), Color3.fromRGB(80, 150, 240))
-setupButtonHover(autoFarmButton, Color3.fromRGB(60, 200, 60), Color3.fromRGB(80, 220, 80))
-
--- Hiệu ứng nhấn nút (tối ưu)
-local function buttonClickEffect(button)
-	local originalSize = button.Size
-	button.Size = UDim2.new(0.75, 0, 0.27, 0)
-	
-	delay(0.1, function()
-		if button.Parent then
-			button.Size = originalSize
-		end
-	end)
-end
-
--- Cache để tối ưu hiệu suất
 local coinCache = {}
 local lastCoinUpdate = 0
-local CACHE_DURATION = 0.5 -- Giảm thời gian cache xuống 0.5 giây
+local CACHE_DURATION = 0.5
 
--- Hàm tìm CoinContainer gần nhất (tối ưu)
+------------------------------------------------------------
+--// UI Window Setup
+------------------------------------------------------------
+local Window = WindUI:CreateWindow({
+    Title = "Sae | Minh Hub",
+    Author = "by MinhCode",
+    Folder = "SaeMinhHub",
+    NewElements = true,
+    HideSearchBar = true,
+
+    OpenButton = {
+        Title = "Open Sae | Minh Hub",
+        CornerRadius = UDim.new(1, 0),
+        StrokeThickness = 2,
+        Enabled = true,
+        Draggable = true,
+        Color = ColorSequence.new(
+            Color3.fromHex("#00FFC6"),
+            Color3.fromHex("#7D2CFF")
+        )
+    }
+})
+
+------------------------------------------------------------
+--// UI Tabs
+------------------------------------------------------------
+local MainTab = Window:Tab({
+    Title = "Main",
+    Icon = "bolt"
+})
+
+local AboutTab = Window:Tab({
+    Title = "About",
+    Icon = "info"
+})
+
+------------------------------------------------------------
+--// Core Functions
+------------------------------------------------------------
 local function findNearestCoinContainer(playerPosition)
-	local currentTime = tick()
-	
-	-- Cập nhật cache nếu cần
-	if currentTime - lastCoinUpdate > CACHE_DURATION or #coinCache == 0 then
-		coinCache = {}
-		
-		-- Chỉ tìm các object có thể là coin
-		for _, obj in pairs(workspace:GetDescendants()) do
-			if (obj:IsA("BasePart") or obj:IsA("MeshPart") or obj:IsA("Part")) and (obj.Name:lower():find("coin") or obj.Name:lower():find("money") or obj.Name:lower():find("dollar") or obj.Name:lower():find("cash")) then
-				table.insert(coinCache, obj)
-			end
-		end
-		
-		lastCoinUpdate = currentTime
-	end
-	
-	if #coinCache == 0 then
-		return nil
-	end
-	
-	-- Tìm coin gần nhất trong cache
-	local closestCoin = nil
-	local shortestDistance = math.huge
-	
-	for _, coin in ipairs(coinCache) do
-		if coin.Parent then -- Kiểm tra coin còn tồn tại
-			local distance = (playerPosition - coin.Position).Magnitude
-			if distance < shortestDistance then
-				shortestDistance = distance
-				closestCoin = coin
-			end
-		end
-	end
-	
-	return closestCoin
+    local currentTime = tick()
+
+    if currentTime - lastCoinUpdate > CACHE_DURATION or #coinCache == 0 then
+        coinCache = {}
+        for _, obj in pairs(workspace:GetDescendants()) do
+            if (obj:IsA("BasePart") or obj:IsA("MeshPart")) and
+               (obj.Name:lower():find("coin") or obj.Name:lower():find("money") or
+                obj.Name:lower():find("dollar") or obj.Name:lower():find("cash")) then
+                table.insert(coinCache, obj)
+            end
+        end
+        lastCoinUpdate = currentTime
+    end
+
+    local closestCoin, shortestDistance = nil, math.huge
+    for _, coin in ipairs(coinCache) do
+        if coin.Parent then
+            local distance = (playerPosition - coin.Position).Magnitude
+            if distance < shortestDistance then
+                shortestDistance = distance
+                closestCoin = coin
+            end
+        end
+    end
+
+    return closestCoin
 end
 
--- Hàm bay xuyên tường (tối ưu)
 local function noclipTeleportToCoin()
-	if isTeleporting then return false end
-	isTeleporting = true
-	
-	local character = player.Character
-	if not character then 
-		isTeleporting = false
-		return false 
-	end
-	
-	local humanoidRootPart = character:FindFirstChild("HumanoidRootPart")
-	if not humanoidRootPart then 
-		isTeleporting = false
-		return false 
-	end
-	
-	-- Tìm coin gần nhất
-	local coin = findNearestCoinContainer(humanoidRootPart.Position)
-	if not coin then
-		isTeleporting = false
-		return false
-	end
-	
-	-- Kích hoạt noclip
-	local noclip = Instance.new("BodyVelocity")
-	noclip.Name = "NoclipVelocity"
-	noclip.MaxForce = Vector3.new(100000, 100000, 100000)
-	noclip.Velocity = Vector3.new(0, 0, 0)
-	noclip.Parent = humanoidRootPart
-	
-	-- Tắt collision và lưu trạng thái
-	local parts = {}
-	for _, part in pairs(character:GetDescendants()) do
-		if part:IsA("BasePart") then
-			parts[part] = part.CanCollide
-			part.CanCollide = false
-		end
-	end
-	
-	-- Di chuyển trực tiếp đến coin (bay nhanh)
-	local targetPosition = coin.Position + Vector3.new(0, 2, 0)
-	humanoidRootPart.CFrame = CFrame.new(targetPosition)
-	
-	-- Dọn dẹp ngay lập tức
-	for part, canCollide in pairs(parts) do
-		if part.Parent then
-			part.CanCollide = canCollide
-		end
-	end
-	
-	if noclip.Parent then
-		noclip:Destroy()
-	end
-	
-	isTeleporting = false
-	return true
+    if isTeleporting then return false end
+    isTeleporting = true
+
+    local character = player.Character
+    if not character then isTeleporting = false return false end
+    local root = character:FindFirstChild("HumanoidRootPart")
+    if not root then isTeleporting = false return false end
+
+    local coin = findNearestCoinContainer(root.Position)
+    if not coin then isTeleporting = false return false end
+
+    local parts = {}
+    for _, part in pairs(character:GetDescendants()) do
+        if part:IsA("BasePart") then
+            parts[part] = part.CanCollide
+            part.CanCollide = false
+        end
+    end
+
+    root.CFrame = CFrame.new(coin.Position + Vector3.new(0, 2, 0))
+
+    for part, canCollide in pairs(parts) do
+        if part.Parent then part.CanCollide = canCollide end
+    end
+
+    isTeleporting = false
+    return true
 end
 
--- Hàm Auto Farm (tối ưu)
 local function startAutoFarm()
-	if connection then
-		connection:Disconnect()
-	end
-	
-	connection = game:GetService("RunService").Heartbeat:Connect(function()
-		if autoFarmEnabled and not isTeleporting then
-			local character = player.Character
-			if character and character:FindFirstChild("HumanoidRootPart") then
-				noclipTeleportToCoin()
-				-- KHÔNG CHỜ - bay liên tục không delay
-			end
-		end
-	end)
+    if connection then connection:Disconnect() end
+    connection = RunService.Heartbeat:Connect(function()
+        if autoFarmEnabled and not isTeleporting then
+            local character = player.Character
+            if character and character:FindFirstChild("HumanoidRootPart") then
+                noclipTeleportToCoin()
+            end
+        end
+    end)
 end
 
--- Hàm dừng Auto Farm
 local function stopAutoFarm()
-	autoFarmEnabled = false
-	autoFarmButton.Text = "ON Auto Farm"
-	autoFarmButton.BackgroundColor3 = Color3.fromRGB(60, 200, 60)
-	setupButtonHover(autoFarmButton, Color3.fromRGB(60, 200, 60), Color3.fromRGB(80, 220, 80))
-	
-	if connection then
-		connection:Disconnect()
-		connection = nil
-	end
+    autoFarmEnabled = false
+    if connection then
+        connection:Disconnect()
+        connection = nil
+    end
 end
 
--- Kết nối sự kiện click nút bay
-teleportButton.MouseButton1Click:Connect(function()
-	buttonClickEffect(teleportButton)
-	task.spawn(noclipTeleportToCoin)
-end)
+------------------------------------------------------------
+--// UI Elements
+------------------------------------------------------------
+MainTab:Button({
+    Title = "Fly to Coin",
+    Icon = "navigation",
+    Color = Color3.fromHex("#308CFF"),
+    Callback = function()
+        noclipTeleportToCoin()
+        WindUI:Notify({
+            Title = "Teleport",
+            Content = "Teleported to nearest coin!"
+        })
+    end
+})
 
--- Kết nối sự kiện click nút auto farm
-autoFarmButton.MouseButton1Click:Connect(function()
-	buttonClickEffect(autoFarmButton)
-	
-	if autoFarmEnabled then
-		stopAutoFarm()
-	else
-		autoFarmEnabled = true
-		autoFarmButton.Text = "OFF Auto Farm"
-		autoFarmButton.BackgroundColor3 = Color3.fromRGB(200, 60, 60)
-		setupButtonHover(autoFarmButton, Color3.fromRGB(200, 60, 60), Color3.fromRGB(220, 80, 80))
-		task.spawn(startAutoFarm)
-	end
-end)
+MainTab:Toggle({
+    Title = "Auto Farm Coins",
+    Desc = "Automatically teleport to nearest coin.",
+    Default = false,
+    Callback = function(state)
+        autoFarmEnabled = state
+        if state then
+            startAutoFarm()
+            WindUI:Notify({
+                Title = "AutoFarm",
+                Content = "Auto Farm: ON"
+            })
+        else
+            stopAutoFarm()
+            WindUI:Notify({
+                Title = "AutoFarm",
+                Content = "Auto Farm: OFF"
+            })
+        end
+    end
+})
 
--- Xử lý khi player chết/respawn
+MainTab:Button({
+    Title = "Reset Character",
+    Icon = "refresh-cw",
+    Color = Color3.fromHex("#FF6A30"),
+    Callback = function()
+        player.Character:BreakJoints()
+    end
+})
+
+------------------------------------------------------------
+--// About Tab
+------------------------------------------------------------
+AboutTab:Image({
+    Image = "rbxassetid://95026563462649",
+    AspectRatio = "1:1",
+    Radius = 12,
+})
+
+AboutTab:Section({
+    Title = "Sae | Minh Hub",
+    Desc = [[
+⚡ Fast Coin AutoFarm
+🚀 One-click Teleport
+💾 Smart Cache System
+🎨 Powered by WindUI
+]],
+    TextSize = 18
+})
+
+AboutTab:Button({
+    Title = "Copy Discord Link",
+    Icon = "link",
+    Color = Color3.fromHex("#5865F2"),
+    Callback = function()
+        setclipboard("https://discord.gg/ftgs-development-hub-1300692552005189632")
+        WindUI:Notify({
+            Title = "Copied!",
+            Content = "Discord link copied to clipboard."
+        })
+    end
+})
+
+------------------------------------------------------------
+--// Respawn Logic
+------------------------------------------------------------
 player.CharacterAdded:Connect(function(character)
-	-- Đảm bảo GUI vẫn hiển thị
-	if not screenGui.Parent then
-		screenGui.Parent = playerGui
-	end
-	
-	-- Tự động tiếp tục auto farm nếu đang bật
-	if autoFarmEnabled then
-		-- Chờ character load xong
-		character:WaitForChild("HumanoidRootPart")
-		task.wait(0.1) -- Giảm thời gian chờ
-		startAutoFarm()
-	end
+    if autoFarmEnabled then
+        task.wait(0.2)
+        startAutoFarm()
+    end
 end)
 
-player.CharacterRemoving:Connect(function()
-	-- Không cần làm gì đặc biệt, GUI vẫn tồn tại
-end)
-
--- Tự động dừng khi GUI bị xóa
-screenGui.Destroying:Connect(stopAutoFarm)
-
--- Khởi tạo
-print("═"..string.rep("═", 40).."═")
-print("🚀 Minh Hub GUI - Đã Tối Ưu Hoá")
-print("📌 GUI sẽ không bị mất khi player chết")
-print("⚡ Tốc độ bay: CỰC NHANH - KHÔNG CHỜ")
-print("💾 Bộ nhớ cache: Đã bật")
-print("═"..string.rep("═", 40).."═")
-print("🎯 Sử dụng:")
-print("• Kéo frame để di chuyển GUI")
-print("• [Bay đến Coin] - Bay đến coin gần nhất")
-print("• [BẬT/TẮT Auto Farm] - Tự động farm coin LIÊN TỤC")
-print("═"..string.rep("═", 40).."═")
+Window:Notify({
+    Title = "Sae | Minh Hub Loaded",
+    Content = "✅ Ready! GUI will stay after respawn.",
+})
