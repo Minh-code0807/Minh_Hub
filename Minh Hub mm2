@@ -381,42 +381,57 @@ MainTab:Button({
 --------------------------------------------------
 --// Fake Death (Test Version, không dồn cục)
 --------------------------------------------------
-local isFakeDead = false
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+local userInputService = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
 
-local function fakeDeath()
-    local char = player.Character
-    if not char or not char:FindFirstChild("HumanoidRootPart") or not char:FindFirstChild("Humanoid") then return end
-    local humanoid = char.Humanoid
-    local root = char.HumanoidRootPart
+-- Biến trạng thái
+local isDown = true
+local originalWalkSpeed = humanoid.WalkSpeed
+local originalJumpPower = humanoid.JumpPower
 
-    if not isFakeDead then
-        isFakeDead = true
-        root.Velocity = Vector3.new(0,5,0) -- lực nhẹ để rải nhân vật
-        root.RotVelocity = Vector3.new(0,0,0)
-        humanoid.PlatformStand = true
-        root.CFrame = root.CFrame * CFrame.Angles(math.rad(90),0,0)
-        for _, p in ipairs(char:GetDescendants()) do
-            if p:IsA("BasePart") then p.CanCollide = false end
-        end
-        WindUI:Notify({Title = "Fake Death", Content = "Bạn đã giả chết! Nhấn Space để hồi dậy."})
-    else
-        isFakeDead = false
-        humanoid.PlatformStand = false
-        root.CFrame = root.CFrame * CFrame.Angles(math.rad(-90),0,0)
-        for _, p in ipairs(char:GetDescendants()) do
-            if p:IsA("BasePart") then p.CanCollide = true end
-        end
-        WindUI:Notify({Title = "Revived", Content = "Bạn đã hồi dậy!"})
-    end
+-- Hàm úp sát mặt đất
+local function lieFaceDown()
+	isDown = true
+	humanoid.WalkSpeed = 0
+	humanoid.JumpPower = 0
+	humanoid.AutoRotate = false
+	rootPart.Anchored = true
+
+	-- Lấy vị trí sàn ngay dưới nhân vật
+	local ray = Ray.new(rootPart.Position, Vector3.new(0, -10, 0))
+	local part, position = workspace:FindPartOnRay(ray, character)
+	if position then
+		rootPart.CFrame = CFrame.new(position + Vector3.new(0, 2, 0)) * CFrame.Angles(math.rad(90), 0, 0)
+	else
+		rootPart.CFrame = rootPart.CFrame * CFrame.Angles(math.rad(90), 0, 0)
+	end
 end
 
--- Nhấn Space để bật/tắt Fake Death
-UserInputService.InputBegan:Connect(function(input, processed)
-    if processed then return end
-    if input.KeyCode == Enum.KeyCode.Space and player.Character then
-        fakeDeath()
-    end
+-- Hàm bật dậy
+local function standUp()
+	isDown = false
+	rootPart.Anchored = false
+	humanoid.AutoRotate = true
+	humanoid.WalkSpeed = originalWalkSpeed
+	humanoid.JumpPower = originalJumpPower
+	rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, rootPart.Orientation.Y, 0)
+end
+
+-- Khi nhấn Space
+userInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.Space and isDown then
+		standUp()
+	end
 end)
+
+-- Khi mới vào game -> nằm sát mặt đất
+character:WaitForChild("HumanoidRootPart")
+lieFaceDown()
 
 MurderTab:Button({
     Title = "Fake Death",
