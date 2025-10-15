@@ -1,10 +1,10 @@
--- Fake Death Chaos
+-- Fake Death Chaos: bật là nằm luôn, Space để đứng
 local Players = game:GetService("Players")
 local UserInputService = game:GetService("UserInputService")
 local player = Players.LocalPlayer
 
 local isFakeDead = false
-local offsets = {} -- lưu offset ban đầu
+local offsets = {}
 
 local function enableChaos()
     local char = player.Character
@@ -15,7 +15,7 @@ local function enableChaos()
 
     humanoid.PlatformStand = true
 
-    -- Lấy tất cả part chính (Head, Torso, Limbs)
+    -- Lấy tất cả part ngoại trừ HumanoidRootPart
     local parts = {}
     for _, p in ipairs(char:GetDescendants()) do
         if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
@@ -24,18 +24,19 @@ local function enableChaos()
         end
     end
 
-    -- Thân nghiêng 90° lên trời hoặc úp xuống (ngẫu nhiên)
-    local angleX = math.random(0,1) == 0 and 90 or -90
-    root.CFrame = root.CFrame * CFrame.Angles(math.rad(angleX),0,0)
+    -- Dời root xuống đất và nghiêng 90° ngẫu nhiên
+    root.CFrame = CFrame.new(root.Position - Vector3.new(0, 2.5, 0)) *
+                  CFrame.Angles(math.rad(math.random(0,1) == 0 and 90 or -90), 0, 0)
 
-    -- Dịch tay chân ngẫu nhiên 0.1–0.5 studs
+    -- Dịch tay chân ±0.1–0.5 studs
     for _, p in ipairs(parts) do
         local dx = (math.random() * 0.4 + 0.1) * (math.random(0,1) == 0 and -1 or 1)
         local dy = (math.random() * 0.4 + 0.1) * (math.random(0,1) == 0 and -1 or 1)
         local dz = (math.random() * 0.4 + 0.1) * (math.random(0,1) == 0 and -1 or 1)
-        p.CFrame = p.CFrame + Vector3.new(dx,dy,dz)
+        p.CFrame = p.CFrame + Vector3.new(dx, dy, dz)
     end
 
+    isFakeDead = true
     print("Fake Death Chaos ON")
 end
 
@@ -48,31 +49,33 @@ local function disableChaos()
 
     humanoid.PlatformStand = false
 
-    -- Đưa tay chân trở về gần vị trí gốc
+    -- Reset các part về vị trí gốc
     for p, offset in pairs(offsets) do
         if p and p.Parent then
             p.CFrame = root.CFrame + offset
         end
     end
     offsets = {}
-
+    isFakeDead = false
     print("Fake Death Chaos OFF")
 end
 
-local function toggleChaos()
-    if not isFakeDead then
-        isFakeDead = true
-        enableChaos()
-    else
-        isFakeDead = false
-        disableChaos()
-    end
-end
-
--- Nhấn Space để toggle
-UserInputService.InputBegan:Connect(function(input,gpe)
+-- Toggle / hủy Fake Death khi nhấn Space
+UserInputService.InputBegan:Connect(function(input, gpe)
     if gpe then return end
     if input.KeyCode == Enum.KeyCode.Space then
-        toggleChaos()
+        if isFakeDead then
+            disableChaos() -- đứng dậy ngay
+        else
+            enableChaos() -- bật nằm luôn
+        end
     end
 end)
+
+-- Nút GUI: bật nằm ngay
+-- MainTab:Button({
+--     Title = "Fake Death Chaos",
+--     Callback = function()
+--         enableChaos()
+--     end
+-- })
