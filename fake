@@ -3,18 +3,29 @@ local character = player.Character or player.CharacterAdded:Wait()
 local humanoid = character:WaitForChild("Humanoid")
 local rootPart = character:WaitForChild("HumanoidRootPart")
 local userInputService = game:GetService("UserInputService")
+local runService = game:GetService("RunService")
 
 -- Biến trạng thái
 local isDown = true
+local originalWalkSpeed = humanoid.WalkSpeed
+local originalJumpPower = humanoid.JumpPower
 
--- Hàm úp xuống
-local function faceDown()
+-- Hàm úp sát mặt đất
+local function lieFaceDown()
 	isDown = true
 	humanoid.WalkSpeed = 0
 	humanoid.JumpPower = 0
 	humanoid.AutoRotate = false
 	rootPart.Anchored = true
-	rootPart.CFrame = rootPart.CFrame * CFrame.Angles(math.rad(90), 0, 0)
+
+	-- Lấy vị trí sàn ngay dưới nhân vật
+	local ray = Ray.new(rootPart.Position, Vector3.new(0, -10, 0))
+	local part, position = workspace:FindPartOnRay(ray, character)
+	if position then
+		rootPart.CFrame = CFrame.new(position + Vector3.new(0, 2, 0)) * CFrame.Angles(math.rad(90), 0, 0)
+	else
+		rootPart.CFrame = rootPart.CFrame * CFrame.Angles(math.rad(90), 0, 0)
+	end
 end
 
 -- Hàm bật dậy
@@ -22,21 +33,19 @@ local function standUp()
 	isDown = false
 	rootPart.Anchored = false
 	humanoid.AutoRotate = true
-	humanoid.WalkSpeed = 16
-	humanoid.JumpPower = 50
-	-- Đưa nhân vật về tư thế đứng
+	humanoid.WalkSpeed = originalWalkSpeed
+	humanoid.JumpPower = originalJumpPower
 	rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, rootPart.Orientation.Y, 0)
 end
 
--- Khi nhấn phím nhảy (Space)
+-- Khi nhấn Space
 userInputService.InputBegan:Connect(function(input, gameProcessed)
 	if gameProcessed then return end
-	if input.KeyCode == Enum.KeyCode.Space then
-		if isDown then
-			standUp()
-		end
+	if input.KeyCode == Enum.KeyCode.Space and isDown then
+		standUp()
 	end
 end)
 
--- Khi mới vào game → úp xuống
-faceDown()
+-- Khi mới vào game -> nằm sát mặt đất
+character:WaitForChild("HumanoidRootPart")
+lieFaceDown()
