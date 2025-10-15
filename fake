@@ -1,81 +1,42 @@
--- Fake Death Chaos: bật là nằm luôn, Space để đứng
-local Players = game:GetService("Players")
-local UserInputService = game:GetService("UserInputService")
-local player = Players.LocalPlayer
+local player = game.Players.LocalPlayer
+local character = player.Character or player.CharacterAdded:Wait()
+local humanoid = character:WaitForChild("Humanoid")
+local rootPart = character:WaitForChild("HumanoidRootPart")
+local userInputService = game:GetService("UserInputService")
 
-local isFakeDead = false
-local offsets = {}
+-- Biến trạng thái
+local isDown = true
 
-local function enableChaos()
-    local char = player.Character
-    if not char or not char:FindFirstChild("Humanoid") then return end
-    local humanoid = char.Humanoid
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-
-    humanoid.PlatformStand = true
-
-    -- Lấy tất cả part ngoại trừ HumanoidRootPart
-    local parts = {}
-    for _, p in ipairs(char:GetDescendants()) do
-        if p:IsA("BasePart") and p.Name ~= "HumanoidRootPart" then
-            table.insert(parts, p)
-            offsets[p] = p.Position - root.Position
-        end
-    end
-
-    -- Dời root xuống đất và nghiêng 90° ngẫu nhiên
-    root.CFrame = CFrame.new(root.Position - Vector3.new(0, 2.5, 0)) *
-                  CFrame.Angles(math.rad(math.random(0,1) == 0 and 90 or -90), 0, 0)
-
-    -- Dịch tay chân ±0.1–0.5 studs
-    for _, p in ipairs(parts) do
-        local dx = (math.random() * 0.4 + 0.1) * (math.random(0,1) == 0 and -1 or 1)
-        local dy = (math.random() * 0.4 + 0.1) * (math.random(0,1) == 0 and -1 or 1)
-        local dz = (math.random() * 0.4 + 0.1) * (math.random(0,1) == 0 and -1 or 1)
-        p.CFrame = p.CFrame + Vector3.new(dx, dy, dz)
-    end
-
-    isFakeDead = true
-    print("Fake Death Chaos ON")
+-- Hàm úp xuống
+local function faceDown()
+	isDown = true
+	humanoid.WalkSpeed = 0
+	humanoid.JumpPower = 0
+	humanoid.AutoRotate = false
+	rootPart.Anchored = true
+	rootPart.CFrame = rootPart.CFrame * CFrame.Angles(math.rad(90), 0, 0)
 end
 
-local function disableChaos()
-    local char = player.Character
-    if not char or not char:FindFirstChild("Humanoid") then return end
-    local humanoid = char.Humanoid
-    local root = char:FindFirstChild("HumanoidRootPart")
-    if not root then return end
-
-    humanoid.PlatformStand = false
-
-    -- Reset các part về vị trí gốc
-    for p, offset in pairs(offsets) do
-        if p and p.Parent then
-            p.CFrame = root.CFrame + offset
-        end
-    end
-    offsets = {}
-    isFakeDead = false
-    print("Fake Death Chaos OFF")
+-- Hàm bật dậy
+local function standUp()
+	isDown = false
+	rootPart.Anchored = false
+	humanoid.AutoRotate = true
+	humanoid.WalkSpeed = 16
+	humanoid.JumpPower = 50
+	-- Đưa nhân vật về tư thế đứng
+	rootPart.CFrame = CFrame.new(rootPart.Position) * CFrame.Angles(0, rootPart.Orientation.Y, 0)
 end
 
--- Toggle / hủy Fake Death khi nhấn Space
-UserInputService.InputBegan:Connect(function(input, gpe)
-    if gpe then return end
-    if input.KeyCode == Enum.KeyCode.Space then
-        if isFakeDead then
-            disableChaos() -- đứng dậy ngay
-        else
-            enableChaos() -- bật nằm luôn
-        end
-    end
+-- Khi nhấn phím nhảy (Space)
+userInputService.InputBegan:Connect(function(input, gameProcessed)
+	if gameProcessed then return end
+	if input.KeyCode == Enum.KeyCode.Space then
+		if isDown then
+			standUp()
+		end
+	end
 end)
 
--- Nút GUI: bật nằm ngay
--- MainTab:Button({
---     Title = "Fake Death Chaos",
---     Callback = function()
---         enableChaos()
---     end
--- })
+-- Khi mới vào game → úp xuống
+faceDown()
